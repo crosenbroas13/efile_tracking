@@ -104,5 +104,27 @@ Behind the scenes, both the CLI and `main.py` rely on the shared `InventoryRunne
 - `outputs/`: Default location for reports (gitignored).
 - `data/`: Placeholder for datasets (gitignored).
 
+## How to run the QA dashboard
+Use the Streamlit dashboard when you want a quick, friendly view of what the inventory captured—no coding required and no document contents loaded. It surfaces totals, file types, folder structure, duplicate hashes, and any obvious red flags (zero-byte files, missing MIME types, unusually large items, and files with timestamps set in the future).
+
+1. Make sure your environment has the app dependencies:
+   ```bash
+   pip install -e .
+   ```
+2. Start the local dashboard, pointing it at the folder where your inventory files live (defaults to `./outputs`):
+   ```bash
+   streamlit run app/qa_dashboard.py -- --out ./outputs
+   ```
+3. The sidebar lets you pick the output folder, choose which `inventory.csv` to view, toggle whether identical hashes count as duplicates, and focus only on files with potential issues. Adjust the "Very large file" threshold if you want stricter or looser alerts.
+4. The main page shows:
+   - **Executive summary** totals for files, sizes, and run-log error counts.
+   - **Dataset structure** rollups to see which top-level folders dominate the dataset and where deeply nested files live.
+   - **File type & size QA** tables and charts that highlight unusual extensions or oversized files.
+   - **Duplicates & integrity** summaries when hashes are available.
+   - **Potential issues** with a downloadable CSV so you can triage edge cases quickly.
+   - **Run history** from `run_log.jsonl` so you can tie the view back to specific inventory runs.
+
+Everything stays on your machine—perfect for non-technical reviewers who need a quick health check before deeper processing.
+
 ## Why this helps
 This inventory gives a transparent map of what was downloaded—counts, sizes, and file types—without touching document content. The append-only `run_log.jsonl` provides an audit trail for future validation, making it easier to trust the dataset before deeper processing like OCR or parsing.
