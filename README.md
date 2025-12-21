@@ -12,21 +12,31 @@ This starter project builds a local-first inventory for the DOJ document explore
   - `run_log.jsonl`: append-only log of each run with arguments, timing, errors, and git commit (if available).
 - Handles unreadable files gracefully: they are logged, and the scan continues.
 
-## Setup
-1. **Python**: Use Python 3.10+.
-2. **Create a virtual environment (recommended)**:
+## Quick start (friendly version)
+1. **Install Python 3.10+** on your machine.
+2. **Create a virtual environment (recommended for a clean setup):**
    ```bash
    python -m venv .venv
-   source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
+   source .venv/bin/activate  # Windows: .venv\Scripts\activate
    ```
-3. **Install dependencies**:
+3. **Install the project and test tools:**
    ```bash
    pip install -e .
-   pip install -e .[test]  # if you want to run pytest
+   pip install -e .[test]  # optional: lets you run pytest
    ```
+4. **Prepare a folder with files to scan.** If you just want to try the tool, make a tiny sample:
+   ```bash
+   mkdir -p sample_data
+   echo "hello" > sample_data/example.txt
+   ```
+5. **Run an inventory in one command:**
+   ```bash
+   python -m src.cli inventory --root "./sample_data" --out "./outputs"
+   ```
+   The command will validate that your `--root` exists and is a folder before scanning. Progress details (hash algorithm, output folder, and file cap) print before the walk begins.
 
-## How to run an inventory
-The CLI uses a single `inventory` command. Replace `<PATH_TO_DATA_ROOT>` with the folder containing the six top-level DOJ dataset folders.
+## How to run an inventory (customized)
+The CLI uses a single `inventory` command. Replace `<PATH_TO_DATA_ROOT>` with the folder containing the six top-level DOJ dataset folders (or your own sample directory).
 
 ```bash
 python -m src.cli inventory \
@@ -36,10 +46,10 @@ python -m src.cli inventory \
   --sample-bytes 0
 ```
 
-### Common options
-- `--ignore`: Glob patterns to skip (can repeat). Defaults already skip system files like `*.DS_Store`.
-- `--follow-symlinks`: Follow symlinks during the walk (off by default).
-- `--max-files`: Safety cap on the number of files to process.
+### Common options (plain English)
+- `--ignore`: Skip files or folders matching these glob patterns (can repeat). Defaults already skip system files like `*.DS_Store`.
+- `--follow-symlinks`: Follow symlinks during the walk (off by default so you do not accidentally scan huge linked folders).
+- `--max-files`: Safety cap on the number of files to process. The CLI now refuses non-positive values so the limit is always meaningful.
 - `--hash`: `none`, `md5`, `sha1`, or `sha256` (default).
 - `--sample-bytes`: If greater than zero, also compute a hash of the first N bytes for a quick comparison while still recording full sizes.
 
@@ -54,10 +64,14 @@ python -m src.cli inventory \
 - Set `--hash none` for the fastest run; use `--sample-bytes` to get lightweight fingerprints without full hashing.
 
 ## Testing
-Run unit tests with pytest:
-```bash
-pytest
-```
+Everything is wired to `pytest` so you can confirm the basics quickly:
+- Make sure your virtual environment is active (`source .venv/bin/activate`).
+- Install test dependencies: `pip install -e .[test]`.
+- Run the suite:
+  ```bash
+  pytest
+  ```
+The tests exercise the CLI pre-checks (missing folders, wrong paths, and invalid `--max-files` values) and verify that running against a tiny sample folder writes all three output files.
 
 ## Project structure
 - `src/config.py`: Configuration, ignore rules, and helpers.
