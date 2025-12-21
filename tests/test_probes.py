@@ -20,8 +20,18 @@ def test_black_ratio_computation():
     for x in range(9):
         for y in range(10):
             img.putpixel((x, y), 0)
-    ratio = _black_ratio_from_image(img.convert("RGB"), black_intensity=10, center_crop_pct=0.5, use_center=True)
-    assert ratio == 0.9
+    ratio = _black_ratio_from_image(
+        img.convert("RGB"),
+        full_mean_ceiling=60,
+        full_high_pct=75,
+        full_high_pct_ceiling=80,
+        center_crop_pct=0.5,
+        center_mean_ceiling=70,
+        center_high_pct=75,
+        center_high_pct_ceiling=90,
+        use_center=True,
+    )
+    assert ratio == 1.0
 
 
 def test_stable_doc_id_prefer_sha():

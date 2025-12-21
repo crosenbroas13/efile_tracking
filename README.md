@@ -117,6 +117,22 @@ Or launch the PyCharm-friendly helper in `scripts/run_probe.py` after adjusting 
 
 You can limit scope with `--max-pdfs`, `--max-pages`, or `--only-top-folder` to spot-check a slice of the dataset without touching the full corpus.
 
+### How the black-page check works
+The probe now converts each rendered PDF page to grayscale and looks at the overall brightness instead of counting individual dark pixels. A page is flagged as mostly dark when **both** of these are true:
+
+- The average luminance stays below a ceiling (default 60 out of 255).
+- A high percentile of pixel brightness (default 75th percentile) is still dim (default under 80 out of 255).
+
+The same calculation runs on the full page and on an optional center crop, each with its own thresholds, so pages with dark edges or dark centers are both recognized. You can tune these values from the CLI:
+
+```bash
+python -m src.cli probe_readiness \
+  --full-mean-ceiling 60 --full-high-pct 75 --full-high-pct-ceiling 80 \
+  --center-mean-ceiling 70 --center-high-pct 75 --center-high-pct-ceiling 90
+```
+
+These controls keep the probe flexible for different scan qualities while staying easy to explain to non-technical reviewers.
+
 ## Project structure
 - `src/config.py`: Configuration, ignore rules, and helpers.
 - `src/app.py`: `InventoryRunner` and `InventoryResult` for IDE-friendly, programmatic runs.

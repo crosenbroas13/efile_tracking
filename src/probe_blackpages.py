@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Dict, List
 
 import pandas as pd
+import numpy as np
 from PIL import Image
 
 _fitz_spec = importlib.util.find_spec("fitz")
@@ -56,35 +57,41 @@ def render_page(path: Path, page_index: int, dpi: int = 72) -> Image.Image | Non
     return None
 
 
-def _black_ratio_from_image(img: Image.Image, black_intensity: int, center_crop_pct: float, use_center: bool) -> float:
-    gray = img.convert("L")
-    pixels = gray.load()
-    width, height = gray.size
-    total_pixels = width * height
-    black_pixels = 0
-    for x in range(width):
-        for y in range(height):
-            if pixels[x, y] <= black_intensity:
-                black_pixels += 1
-    full_ratio = black_pixels / total_pixels if total_pixels else 0
+def _luminance_stats(gray_array: np.ndarray, high_percentile: float) -> tuple[float, float]:
+    mean_lum = float(np.mean(gray_array)) if gray_array.size else 0.0
+    pct_value = float(np.percentile(gray_array, high_percentile)) if gray_array.size else 0.0
+    return mean_lum, pct_value
+
+
+def _black_ratio_from_image(
+    img: Image.Image,
+    *,
+    full_mean_ceiling: float,
+    full_high_pct: float,
+    full_high_pct_ceiling: float,
+    center_crop_pct: float,
+    center_mean_ceiling: float,
+    center_high_pct: float,
+    center_high_pct_ceiling: float,
+    use_center: bool,
+) -> float:
+    gray_array = np.asarray(img.convert("L"), dtype=np.float32)
+    full_mean, full_high_pct_value = _luminance_stats(gray_array, full_high_pct)
+    full_dark = full_mean <= full_mean_ceiling and full_high_pct_value <= full_high_pct_ceiling
 
     if not use_center:
-        return full_ratio
+        return 1.0 if full_dark else 0.0
 
-    crop_w = int(width * center_crop_pct)
-    crop_h = int(height * center_crop_pct)
-    start_x = (width - crop_w) // 2
-    start_y = (height - crop_h) // 2
-    crop = gray.crop((start_x, start_y, start_x + crop_w, start_y + crop_h))
-    crop_pixels = crop.load()
-    crop_total = crop_w * crop_h
-    crop_black = 0
-    for x in range(crop_w):
-        for y in range(crop_h):
-            if crop_pixels[x, y] <= black_intensity:
-                crop_black += 1
-    crop_ratio = crop_black / crop_total if crop_total else 0
-    return max(full_ratio, crop_ratio)
+    height, width = gray_array.shape
+    crop_w = max(1, int(width * center_crop_pct))
+    crop_h = max(1, int(height * center_crop_pct))
+    start_x = max(0, (width - crop_w) // 2)
+    start_y = max(0, (height - crop_h) // 2)
+    center_array = gray_array[start_y : start_y + crop_h, start_x : start_x + crop_w]
+    center_mean, center_high_pct_value = _luminance_stats(center_array, center_high_pct)
+    center_dark = center_mean <= center_mean_ceiling and center_high_pct_value <= center_high_pct_ceiling
+
+    return 1.0 if (full_dark or center_dark) else 0.0
 
 
 def evaluate_black_pages(
@@ -140,8 +147,13 @@ def evaluate_black_pages(
                 continue
             ratio = _black_ratio_from_image(
                 img,
-                black_intensity=config.black_threshold_intensity,
+                full_mean_ceiling=config.full_mean_ceiling,
+                full_high_pct=config.full_high_pct,
+                full_high_pct_ceiling=config.full_high_pct_ceiling,
                 center_crop_pct=config.center_crop_pct,
+                center_mean_ceiling=config.center_mean_ceiling,
+                center_high_pct=config.center_high_pct,
+                center_high_pct_ceiling=config.center_high_pct_ceiling,
                 use_center=config.use_center_crop,
             )
             is_black = ratio >= config.mostly_black_ratio

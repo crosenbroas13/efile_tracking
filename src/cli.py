@@ -48,8 +48,13 @@ def run_probe_cli(args: argparse.Namespace) -> None:
         text_char_threshold=args.text_threshold,
         doc_text_pct_text=args.doc_text_pct_text,
         doc_text_pct_scanned=args.doc_text_pct_scanned,
-        black_threshold_intensity=args.black_intensity,
         mostly_black_ratio=args.mostly_black,
+        full_mean_ceiling=args.full_mean_ceiling,
+        full_high_pct=args.full_high_pct,
+        full_high_pct_ceiling=args.full_high_pct_ceiling,
+        center_mean_ceiling=args.center_mean_ceiling,
+        center_high_pct=args.center_high_pct,
+        center_high_pct_ceiling=args.center_high_pct_ceiling,
         render_dpi=args.dpi,
         center_crop_pct=args.center_crop_pct,
         use_center_crop=args.use_center_crop,
@@ -89,7 +94,32 @@ def build_parser() -> argparse.ArgumentParser:
     probe.add_argument("--doc-text-pct-text", type=float, default=0.90, help="Pct of pages with text to call doc text-based")
     probe.add_argument("--doc-text-pct-scanned", type=float, default=0.10, help="Pct of pages with text to call doc scanned")
     probe.add_argument("--mostly-black", type=float, default=0.90, help="Black pixel ratio threshold")
-    probe.add_argument("--black-intensity", type=int, default=40, help="Grayscale value to count as black (0-255)")
+    probe.add_argument("--full-mean-ceiling", type=float, default=60.0, help="Max average luminance for full page to be dark")
+    probe.add_argument(
+        "--full-high-pct",
+        type=float,
+        default=75.0,
+        help="High-percentile (0-100) used to judge bright pixels on full page",
+    )
+    probe.add_argument(
+        "--full-high-pct-ceiling",
+        type=float,
+        default=80.0,
+        help="Maximum allowed luminance at the chosen high percentile for full page",
+    )
+    probe.add_argument("--center-mean-ceiling", type=float, default=70.0, help="Max average luminance for center crop")
+    probe.add_argument(
+        "--center-high-pct",
+        type=float,
+        default=75.0,
+        help="High-percentile (0-100) used to judge bright pixels on center crop",
+    )
+    probe.add_argument(
+        "--center-high-pct-ceiling",
+        type=float,
+        default=90.0,
+        help="Maximum allowed luminance at the chosen high percentile for center crop",
+    )
     probe.add_argument("--use-center-crop", action="store_true", default=True, help="Enable center crop for black detection")
     probe.add_argument("--no-center-crop", action="store_false", dest="use_center_crop", help="Disable center crop evaluation")
     probe.add_argument("--center-crop-pct", type=float, default=0.70, help="Portion of center used for crop")

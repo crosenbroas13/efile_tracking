@@ -1,12 +1,19 @@
 from __future__ import annotations
 
+import importlib
+import importlib.util
 import logging
 import random
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
 import pandas as pd
-from pypdf import PdfReader
+
+_pypdf_spec = importlib.util.find_spec("pypdf")
+if _pypdf_spec:  # pragma: no cover - optional import
+    PdfReader = importlib.import_module("pypdf").PdfReader  # type: ignore
+else:  # pragma: no cover - optional import
+    PdfReader = None
 
 from src.probe_config import ProbeConfig
 
@@ -59,6 +66,10 @@ def _extract_page_text(page) -> str:
 
 
 def _process_pdf_text(path: Path, config: ProbeConfig, max_pages: int = 0) -> Dict:
+    if PdfReader is None:
+        msg = "pypdf not installed"
+        LOGGER.warning("Failed to open PDF %s: %s", path, msg)
+        return {"error": msg, "pages": [], "page_count": 0}
     try:
         reader = PdfReader(str(path))
     except Exception as exc:  # encryption or unreadable
