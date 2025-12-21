@@ -28,7 +28,7 @@ from src.io_utils import (
 )
 from src.qa_metrics import IssueConfig, compute_executive_summary, counts_by_extension_and_mime, detect_potential_issues
 
-st.set_page_config(page_title="Dataset QA Report", layout="wide")
+st.set_page_config(page_title="QA File Import", layout="wide")
 
 CONFIG_DEFAULTS = {
     "large_file_threshold": 500,  # MB
@@ -133,18 +133,18 @@ def _initial_out_dir_from_args() -> Path:
 
 
 def main() -> None:
-    st.title("Dataset QA Report")
+    st.title("QA File Import")
     st.caption("Local-only dashboard that summarizes inventory outputs without reading file contents.")
 
     with st.sidebar:
         st.header("Navigation")
-        page_selection = st.radio("Choose a page", ["Home", "QA Dashboard"])
+        page_selection = st.radio("Choose a page", ["Home", "QA File Import"])
 
     if page_selection == "Home":
         st.subheader("Welcome")
         st.markdown(
             """
-            This home page is a landing spot for future tools. Use the navigation on the left to open the QA Dashboard,
+            This home page is a landing spot for future tools. Use the navigation on the left to open the QA File Import view,
             where you can explore inventory outputs, see structure rollups, and export a portable PDF summary for
             non-technical reviewers.
             """
@@ -155,8 +155,8 @@ def main() -> None:
     default_out = _initial_out_dir_from_args()
     st.markdown("#### Choose an inventory to review")
     st.caption(
-        "Pick an output folder to auto-discover inventories or upload an inventory.csv directly from your computer. "
-        "Controls here replace the former sidebar so everything stays in one view."
+        "Pick an output folder to auto-discover inventories. If you prefer, you can then upload an inventory.csv directly "
+        "from your computer. Controls here replace the former sidebar so everything stays in one view."
     )
 
     selector = st.container()
@@ -165,25 +165,30 @@ def main() -> None:
         with input_cols[0]:
             out_dir_text = st.text_input("Output folder", value=str(default_out))
             out_dir = normalize_out_dir(out_dir_text)
+
+            candidates = list_inventory_candidates(out_dir)
+            options = {format_run_label(p): p for p in candidates}
+            default_path = pick_default_inventory(out_dir)
+            default_label = format_run_label(default_path) if default_path else None
+            option_keys = list(options.keys())
+            default_index = 0
+            if default_label and default_label in option_keys:
+                default_index = option_keys.index(default_label)
+            selection = st.selectbox(
+                "Inventory run (auto-detected from output folder)",
+                options=option_keys or ["No inventory found"],
+                index=default_index,
+            )
+            selected_path = options.get(selection)
+
         with input_cols[1]:
-            uploaded_inventory = st.file_uploader("Upload inventory.csv (optional)", type=["csv"])
+            uploaded_inventory = st.file_uploader(
+                "Upload inventory.csv (optional)",
+                type=["csv"],
+                help="Start by selecting a folder above, then upload a CSV if you need to review a different file.",
+            )
         with input_cols[2]:
             top_n = st.slider("Top rows for tables", min_value=5, max_value=50, value=20, step=5)
-
-        candidates = list_inventory_candidates(out_dir)
-        options = {format_run_label(p): p for p in candidates}
-        default_path = pick_default_inventory(out_dir)
-        default_label = format_run_label(default_path) if default_path else None
-        option_keys = list(options.keys())
-        default_index = 0
-        if default_label and default_label in option_keys:
-            default_index = option_keys.index(default_label)
-        selection = st.selectbox(
-            "Inventory run (auto-detected from output folder)",
-            options=option_keys or ["No inventory found"],
-            index=default_index,
-        )
-        selected_path = options.get(selection)
 
     filters = st.container()
     with filters:
@@ -280,33 +285,11 @@ def main() -> None:
             st.plotly_chart(bar_fig, use_container_width=True)
             st.dataframe(top_types)
 
-    st.markdown("### File Type & Size QA")
-    st.caption("Spot unusual extensions and size patterns. The histogram colors make it easy to see which formats dominate.")
-    qa_cols = st.columns(2)
-
-    with qa_cols[0]:
-        st.subheader("Counts by extension and MIME")
-        counts_table = counts_by_extension_and_mime(filtered_df)
-        st.dataframe(counts_table.head(top_n))
-
-    with qa_cols[1]:
-        st.subheader("File size histogram by type")
-        size_df = filtered_df.copy()
-        if "size_bytes" not in size_df or size_df["size_bytes"].isna().all():
-            st.info("No size data available for histogram.")
-        else:
-            size_df["extension"] = size_df.get("extension", pd.Series(dtype="string")).fillna("Unknown").str.lower()
-            size_df = size_df[size_df["size_bytes"].notna()]
-            hist_fig = px.histogram(
-                size_df,
-                x="size_bytes",
-                color="extension",
-                nbins=40,
-                title="File size distribution",
-                labels={"size_bytes": "Size (bytes)", "extension": "File type"},
-            )
-            hist_fig.update_xaxes(type="log", title="File size (bytes, log scale)")
-            st.plotly_chart(hist_fig, use_container_width=True)
+    st.markdown("### File Type QA")
+    st.caption("Spot unusual extensions and MIME combinations that may need closer review.")
+    st.subheader("Counts by extension and MIME")
+    counts_table = counts_by_extension_and_mime(filtered_df)
+    st.dataframe(counts_table.head(top_n))
 
     st.markdown("### Run History")
     st.caption("Recent inventory runs help you connect this view back to the pipeline.")

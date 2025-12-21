@@ -104,7 +104,7 @@ Behind the scenes, both the CLI and `main.py` rely on the shared `InventoryRunne
 - `outputs/`: Default location for reports (gitignored).
 - `data/`: Placeholder for datasets (gitignored).
 
-## How to run the QA dashboard
+## How to run the QA File Import dashboard
 Use the Streamlit dashboard when you want a quick, friendly view of what the inventory captured—no coding required and no document contents loaded. It surfaces totals, file types, folder structure, duplicate hashes, and any obvious red flags (zero-byte files, missing MIME types, unusually large items, and files with timestamps set in the future).
 
 1. Make sure your environment has the app dependencies:
@@ -113,13 +113,13 @@ Use the Streamlit dashboard when you want a quick, friendly view of what the inv
    ```
 2. Start the local dashboard, pointing it at the folder where your inventory files live (defaults to `./outputs`):
    ```bash
-   streamlit run app/qa_dashboard.py -- --out ./outputs
+   streamlit run app/qa_fileimport.py -- --out ./outputs
    ```
-3. Use the left-hand navigation to open the QA Dashboard (the home page is ready for future tools). Dashboard controls now sit at the top of the page so reviewers can choose an output folder, upload an `inventory.csv` directly from their computer, and adjust the "Very large file" threshold without leaving the main view.
+3. Use the left-hand navigation to open the QA File Import page (the home page is ready for future tools). Dashboard controls now sit at the top of the page so reviewers can choose an output folder, upload an `inventory.csv` directly from their computer, and adjust the "Very large file" threshold without leaving the main view.
 4. The main page shows:
    - **Executive summary** totals for files, sizes, and run-log error counts.
    - **Dataset structure** rollups to see which top-level folders dominate the dataset and which file types are most common.
-   - **File type & size QA** tables and charts that highlight unusual extensions or oversized files.
+   - **File type QA** tables that highlight unusual extensions and MIME combinations.
    - **Run history** from `run_log.jsonl` so you can tie the view back to specific inventory runs.
    - **PDF export** button to download a lightweight summary that can be shared with non-technical reviewers without exposing file contents.
 
@@ -128,7 +128,7 @@ different machines without breaking.
 
 Everything stays on your machine—perfect for non-technical reviewers who need a quick health check before deeper processing.
 
-If you launch the dashboard straight from a cloned folder without installing the package (`pip install -e .`), the app now adjusts its import path automatically so `src/*` modules still load. That means you can use `streamlit run app/qa_dashboard.py -- --out ./outputs` from the repo root without extra setup.
+If you launch the dashboard straight from a cloned folder without installing the package (`pip install -e .`), the app now adjusts its import path automatically so `src/*` modules still load. That means you can use `streamlit run app/qa_fileimport.py -- --out ./outputs` from the repo root without extra setup.
 
 ## Why this helps
 This inventory gives a transparent map of what was downloaded—counts, sizes, and file types—without touching document content. The append-only `run_log.jsonl` provides an audit trail for future validation, making it easier to trust the dataset before deeper processing like OCR or parsing.
