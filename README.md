@@ -117,6 +117,8 @@ Or launch the PyCharm-friendly helper in `scripts/run_probe.py` after adjusting 
 
 You can limit scope with `--max-pdfs`, `--max-pages`, or `--only-top-folder` to spot-check a slice of the dataset without touching the full corpus.
 
+The black-page check now reuses a single grayscale copy of each page to calculate whole-page, center-crop, and adaptive darkness ratios in one pass. Those vectorized metrics record mean luminance and contrast alongside the ratios, speeding up the probe and giving non-technical reviewers clearer evidence when a low-contrast page is genuinely dark.
+
 ## Project structure
 - `src/config.py`: Configuration, ignore rules, and helpers.
 - `src/app.py`: `InventoryRunner` and `InventoryResult` for IDE-friendly, programmatic runs.

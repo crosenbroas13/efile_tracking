@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import importlib.util
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List
 
 import pandas as pd
+import numpy as np
 from PIL import Image
 
 _fitz_spec = importlib.util.find_spec("fitz")
@@ -27,6 +29,35 @@ else:  # pragma: no cover - optional import
 from src.probe_config import ProbeConfig
 
 LOGGER = logging.getLogger(__name__)
+
+
+@dataclass
+class BlackPageMetrics:
+    full_ratio: float
+    center_ratio: float
+    adaptive_full_ratio: float
+    adaptive_center_ratio: float
+    mean_luminance: float
+    std_luminance: float
+
+    @property
+    def dominant_ratio(self) -> float:
+        """Highest darkness signal from absolute, adaptive, and crop checks."""
+
+        return max(
+            self.full_ratio,
+            self.center_ratio,
+            self.adaptive_full_ratio,
+            self.adaptive_center_ratio,
+            self._mean_darkness_signal(),
+        )
+
+    def _mean_darkness_signal(self) -> float:
+        """Use mean luminance as a gentle fallback for low-contrast dark pages."""
+
+        if self.std_luminance < 25:
+            return max(0.0, min(1.0, 1 - (self.mean_luminance / 255)))
+        return 0.0
 
 
 def _pixmap_to_image(pixmap) -> Image.Image:
@@ -56,35 +87,43 @@ def render_page(path: Path, page_index: int, dpi: int = 72) -> Image.Image | Non
     return None
 
 
-def _black_ratio_from_image(img: Image.Image, black_intensity: int, center_crop_pct: float, use_center: bool) -> float:
-    gray = img.convert("L")
-    pixels = gray.load()
-    width, height = gray.size
-    total_pixels = width * height
-    black_pixels = 0
-    for x in range(width):
-        for y in range(height):
-            if pixels[x, y] <= black_intensity:
-                black_pixels += 1
-    full_ratio = black_pixels / total_pixels if total_pixels else 0
+def _black_ratio_from_image(
+    img: Image.Image, black_intensity: int, center_crop_pct: float, use_center: bool
+) -> BlackPageMetrics:
+    gray_array = np.asarray(img.convert("L"), dtype=np.uint8)
+    total_pixels = gray_array.size
+    mean_luminance = float(gray_array.mean()) if total_pixels else 0.0
+    std_luminance = float(gray_array.std()) if total_pixels else 0.0
 
-    if not use_center:
-        return full_ratio
+    absolute_mask = gray_array <= black_intensity
+    full_ratio = float(absolute_mask.mean()) if total_pixels else 0.0
 
-    crop_w = int(width * center_crop_pct)
-    crop_h = int(height * center_crop_pct)
-    start_x = (width - crop_w) // 2
-    start_y = (height - crop_h) // 2
-    crop = gray.crop((start_x, start_y, start_x + crop_w, start_y + crop_h))
-    crop_pixels = crop.load()
-    crop_total = crop_w * crop_h
-    crop_black = 0
-    for x in range(crop_w):
-        for y in range(crop_h):
-            if crop_pixels[x, y] <= black_intensity:
-                crop_black += 1
-    crop_ratio = crop_black / crop_total if crop_total else 0
-    return max(full_ratio, crop_ratio)
+    adaptive_cutoff = min(black_intensity + 30, max(0.0, mean_luminance - std_luminance))
+    adaptive_mask = gray_array <= adaptive_cutoff
+    adaptive_full_ratio = float(adaptive_mask.mean()) if total_pixels else 0.0
+
+    center_ratio = 0.0
+    adaptive_center_ratio = 0.0
+    if use_center:
+        height, width = gray_array.shape
+        crop_w = int(width * center_crop_pct)
+        crop_h = int(height * center_crop_pct)
+        start_x = (width - crop_w) // 2
+        start_y = (height - crop_h) // 2
+        crop = gray_array[start_y : start_y + crop_h, start_x : start_x + crop_w]
+        crop_size = crop.size
+        if crop_size:
+            center_ratio = float((crop <= black_intensity).mean())
+            adaptive_center_ratio = float((crop <= adaptive_cutoff).mean())
+
+    return BlackPageMetrics(
+        full_ratio=full_ratio,
+        center_ratio=center_ratio,
+        adaptive_full_ratio=adaptive_full_ratio,
+        adaptive_center_ratio=adaptive_center_ratio,
+        mean_luminance=mean_luminance,
+        std_luminance=std_luminance,
+    )
 
 
 def evaluate_black_pages(
@@ -138,12 +177,13 @@ def evaluate_black_pages(
                     }
                 )
                 continue
-            ratio = _black_ratio_from_image(
+            metrics = _black_ratio_from_image(
                 img,
                 black_intensity=config.black_threshold_intensity,
                 center_crop_pct=config.center_crop_pct,
                 use_center=config.use_center_crop,
             )
+            ratio = metrics.dominant_ratio
             is_black = ratio >= config.mostly_black_ratio
             base_record = {
                 "doc_id": row.doc_id,
@@ -154,6 +194,12 @@ def evaluate_black_pages(
                 "text_char_count": None,
                 "has_text": None,
                 "black_ratio": ratio,
+                "black_ratio_full": metrics.full_ratio,
+                "black_ratio_center": metrics.center_ratio,
+                "adaptive_black_ratio": metrics.adaptive_full_ratio,
+                "adaptive_black_ratio_center": metrics.adaptive_center_ratio,
+                "mean_luminance": metrics.mean_luminance,
+                "std_luminance": metrics.std_luminance,
                 "is_mostly_black": is_black,
             }
             if page_lookup is not None and (row.doc_id, idx + 1) in page_lookup.index:
@@ -189,6 +235,7 @@ def evaluate_black_pages(
 
 
 __all__ = [
+    "BlackPageMetrics",
     "render_page",
     "evaluate_black_pages",
     "_black_ratio_from_image",
