@@ -62,3 +62,50 @@ This toolkit inventories DOJ document drops and runs light-touch probes to estim
 - No network calls or telemetry are made.
 - No attempts are made to reverse redactions; probes only record numeric readiness metrics and black-page ratios.
 - All computations run locally; outputs stay on disk for auditability.
+
+## Repository file guide
+Use this checklist to understand what lives where. It is written in plain language so project managers and analysts can see how the pieces fit together without reading code.
+
+- **Project metadata**
+  - `.gitattributes`: Keeps text files normalized so Git diffs stay predictable across operating systems.
+  - `.gitignore`: Prevents temporary data (such as outputs or virtual environments) from being committed.
+  - `pyproject.toml`: Defines the Python package name, dependencies, and build settings.
+  - `docs/AUDIT_REPORT.md`: A narrative audit of entry points, data flow, and migration plans for the toolkit.
+
+- **Helper scripts**
+  - `scripts/run_inventory.py`: Simple entry point for IDE users; edit two constants to scan a folder and write inventory outputs.
+  - `scripts/run_probe.py`: IDE-friendly probe launcher that locates the latest inventory (or a specific run ID) and saves readiness metrics.
+
+- **Streamlit dashboards**
+  - `app/Home.py`: Landing page that introduces the dashboards and explains how to navigate them safely.
+  - `app/qa_fileimport.py`: Main Streamlit view for browsing inventories, highlighting potential issues, and exporting a PDF summary.
+  - `app/pages/01_Inventory_QA.py`: Thin wrapper that hosts the inventory QA view inside the multipage app.
+  - `app/pages/02_Probe_QA.py`: Probe results viewer with charts and download buttons for the readiness metrics.
+
+- **Core package (`src/` folder)**
+  - `src/__init__.py`: Exposes the `InventoryRunner` and result dataclass for simple imports.
+  - `src/main.py`: PyCharm-friendly runner that triggers inventories using editable constants for paths and settings.
+  - `src/app.py`: Implements `InventoryRunner`, handling path validation, inventory execution, summaries, and logging.
+  - `src/config.py`: Dataclass for inventory configuration plus helpers to normalize and apply ignore patterns.
+  - `src/inventory.py`: Walks the dataset, gathers file metadata and hashes, and returns structured `FileRecord` entries.
+  - `src/manifest.py`: Writes inventory CSVs, JSON summaries, and run logs to disk.
+  - `src/cli.py`: Legacy wrapper that routes CLI calls to the maintained `doj_doc_explorer.cli` module while keeping old behavior.
+  - `src/io_utils.py`: Shared loaders for inventory CSVs, summaries, and run logs with optional Streamlit caching.
+  - `src/qa_metrics.py`: Computes executive summaries, file rollups, and issue detection from inventory data.
+  - `src/git_utils.py`: Utility for capturing the current Git commit hash in run logs.
+  - `src/probe_config.py`: Configuration dataclass for probe runs, including thresholds and sampling settings.
+  - `src/probe_readiness.py`: Reads PDFs to estimate text readiness, classify documents, and track errors.
+  - `src/probe_blackpages.py`: Renders PDF pages to measure darkness and flag mostly black pages that may not need OCR.
+  - `src/probe_runner.py`: Orchestrates readiness and black-page checks, merges results, and collects run metadata.
+  - `src/probe_outputs.py`: Saves probe outputs (CSV/Parquet plus summaries and logs) to versioned run folders.
+  - `src/probe_io.py`: Loads probe runs from disk and lists available runs for dashboard use.
+  - `src/probe_viz_helpers.py`: Small formatting and parsing helpers used by the Probe QA dashboard.
+
+- **Tests**
+  - `tests/conftest.py`: Ensures the repository root is importable during testing.
+  - `tests/test_app.py`: Validates that `InventoryRunner` resolves input and output paths correctly.
+  - `tests/test_cli.py`: Checks CLI error handling and verifies inventory outputs are created.
+  - `tests/test_inventory.py`: Covers inventory scanning behavior, file ID stability, and summary aggregation.
+  - `tests/test_probe_io.py`: Confirms probe run discovery and loading logic for stored probe results.
+  - `tests/test_probes.py`: Exercises PDF classification, darkness metrics, and deterministic document IDs.
+  - `tests/test_qa_metrics.py`: Verifies categorization, duplicate detection, and issue flagging heuristics for inventory data.
