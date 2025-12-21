@@ -174,6 +174,7 @@ streamlit run app/pages/02_Probe_QA.py
 Or use the multipage launcher above to keep the Inventory QA view close by. The Probe QA dashboard lets non-technical reviewers:
 
 - Pick which probe run to view (by ID and timestamp) and point the UI at any `outputs` root.
+- Switch folders and runs from the top of the page without opening a sidebar, keeping the layout simple for quick comparisons.
 - See executive summary tiles for PDFs processed, pages checked, classification mix, mostly-black counts, and OCR page estimates (baseline and adjusted to skip mostly-black pages).
 - Explore document-level distributions (text coverage, black ratios, classifications, folder rollups) with interactive charts.
 - Download prioritization tables that highlight likely text-ready files, scanned-heavy items, and black/redacted-heavy PDFs.
