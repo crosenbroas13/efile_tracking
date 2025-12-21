@@ -6,8 +6,13 @@ executed through the shared ``InventoryRunner`` so the same validation
 and outputs are used whether you call the CLI or this script.
 """
 from pathlib import Path
+import sys
 
-from .app import InventoryRunner
+if __package__ is None or __package__ == "":
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from app import InventoryRunner
+else:
+    from .app import InventoryRunner
 
 # Edit these values to match your machine. They default to the repo's
 # gitignored ``data`` and ``outputs`` folders so you can test safely.
