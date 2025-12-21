@@ -1,78 +1,42 @@
 import argparse
-import subprocess
 import time
 from pathlib import Path
 
-from .config import InventoryConfig, normalize_patterns
-from .inventory import scan_inventory
-from .manifest import append_run_log, build_summary, write_inventory_csv, write_summary_json
-
-
-def _git_commit() -> str:
-    try:
-        commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
-        return commit
-    except Exception:
-        return "unknown"
+from .app import InventoryRunner
 
 
 def run_inventory(args: argparse.Namespace) -> None:
-    root = Path(args.root).expanduser().resolve()
-    if not root.exists():
-        raise SystemExit(
-            f"Dataset root does not exist: {root}. Provide a folder that already contains your files to scan."
+    runner = InventoryRunner()
+    try:
+        config = runner.create_config(
+            root=Path(args.root),
+            out_dir=Path(args.out),
+            hash_algorithm=args.hash,
+            sample_bytes=args.sample_bytes,
+            ignore_patterns=args.ignore,
+            follow_symlinks=args.follow_symlinks,
+            max_files=args.max_files,
         )
-    if not root.is_dir():
-        raise SystemExit(f"Dataset root must be a directory, but received: {root}")
-    if args.max_files is not None and args.max_files <= 0:
-        raise SystemExit("--max-files must be a positive integer when provided.")
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
 
-    out_dir = Path(args.out).expanduser()
-    out_dir.mkdir(parents=True, exist_ok=True)
-    config = InventoryConfig(
-        root=root,
-        out_dir=out_dir,
-        hash_algorithm=args.hash,
-        sample_bytes=args.sample_bytes,
-        ignore_patterns=normalize_patterns(args.ignore),
-        follow_symlinks=args.follow_symlinks,
-        max_files=args.max_files,
-    )
     start = time.time()
     print(
         "Starting scan...\n"
-        f"  Data folder: {root}\n"
-        f"  Outputs -> {out_dir}\n"
-        f"  Hash algorithm: {args.hash} (sample bytes: {args.sample_bytes})\n"
-        f"  Max files: {'no limit' if args.max_files is None else args.max_files}"
+        f"  Data folder: {config.root}\n"
+        f"  Outputs -> {config.out_dir}\n"
+        f"  Hash algorithm: {config.hash_algorithm} (sample bytes: {config.sample_bytes})\n"
+        f"  Max files: {'no limit' if config.max_files is None else config.max_files}"
     )
-    records, errors = scan_inventory(config)
-    csv_path = write_inventory_csv(records, out_dir)
-    summary = build_summary(records)
-    summary_path = write_summary_json(summary, out_dir)
+
+    result = runner.run(config)
     runtime = time.time() - start
-    log_entry = {
-        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "root": str(root),
-        "args": {
-            "hash": args.hash,
-            "sample_bytes": args.sample_bytes,
-            "ignore": args.ignore,
-            "follow_symlinks": args.follow_symlinks,
-            "max_files": args.max_files,
-        },
-        "runtime_seconds": runtime,
-        "files_scanned": len(records),
-        "errors_count": len(errors),
-        "git_commit": _git_commit(),
-        "errors": errors,
-    }
-    append_run_log(log_entry, out_dir)
-    print(f"Inventory complete: {csv_path}")
-    print(f"Summary written: {summary_path}")
-    print(f"Files scanned: {len(records)} in {runtime:.2f}s")
-    if errors:
-        print(f"Encountered {len(errors)} issues; see run_log.jsonl for details.")
+
+    print(f"Inventory complete: {result.csv_path}")
+    print(f"Summary written: {result.summary_path}")
+    print(f"Files scanned: {len(result.records)} in {runtime:.2f}s")
+    if result.errors:
+        print(f"Encountered {len(result.errors)} issues; see run_log.jsonl for details.")
 
 
 def build_parser() -> argparse.ArgumentParser:

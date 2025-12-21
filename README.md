@@ -69,15 +69,26 @@ Everything is wired to `pytest` so you can confirm the basics quickly:
 - Install test dependencies: `pip install -e .[test]`.
 - Run the suite:
   ```bash
-  pytest
+ pytest
   ```
 The tests exercise the CLI pre-checks (missing folders, wrong paths, and invalid `--max-files` values) and verify that running against a tiny sample folder writes all three output files.
 
+## Run without the terminal (PyCharm-friendly)
+If you prefer clicking "Run" in PyCharm instead of typing commands, use the new `src/main.py` entrypoint.
+
+1. Open the project in PyCharm and locate `src/main.py` in the Project tree.
+2. Update the constants at the top of the file so they point to your data folder and the output directory you want to use. They default to the repo's gitignored `data/` and `outputs/` folders so you can experiment safely.
+3. Right-click `src/main.py` and choose **Run 'main'**. PyCharm will execute the same inventory process as the CLI and print a short summary in the Run tool window.
+
+Behind the scenes, both the CLI and `main.py` rely on the shared `InventoryRunner` class. That runner bundles the path validation, scanning logic, and logging so you get identical results whether you are in a shell or inside the IDE.
+
 ## Project structure
 - `src/config.py`: Configuration, ignore rules, and helpers.
+- `src/app.py`: `InventoryRunner` and `InventoryResult` for IDE-friendly, programmatic runs.
 - `src/inventory.py`: Directory scan, metadata extraction, hashing, and deterministic `file_id` creation.
 - `src/manifest.py`: Writes CSV/JSON outputs and builds summaries.
-- `src/cli.py`: Argparse entry point for the `inventory` command.
+- `src/cli.py`: Argparse entry point for the `inventory` command, now delegating to the shared runner.
+- `src/main.py`: Editable entrypoint you can run directly from PyCharm without crafting CLI flags.
 - `outputs/`: Default location for reports (gitignored).
 - `data/`: Placeholder for datasets (gitignored).
 
