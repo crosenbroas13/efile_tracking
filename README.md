@@ -94,6 +94,29 @@ The same guardrails now apply to the output directory: if you paste `Users/<you>
 
 Behind the scenes, both the CLI and `main.py` rely on the shared `InventoryRunner` class. That runner bundles the path validation, scanning logic, and logging so you get identical results whether you are in a shell or inside the IDE.
 
+## Probe runs: extraction readiness + black-page check
+After you have an `inventory.csv`, you can run a low-touch “probe” that estimates which PDFs already have text, which look scanned, and which pages are mostly black (often an OCR waste). The probe does **not** save any extracted text—only counts and numeric ratios.
+
+Run it from the CLI:
+
+```bash
+python -m src.cli probe_readiness \
+  --inventory "./outputs/inventory.csv" \
+  --out "./outputs" \
+  --dpi 72 \
+  --text-threshold 25 \
+  --mostly-black 0.90
+```
+
+Or launch the PyCharm-friendly helper in `scripts/run_probe.py` after adjusting the two constants near the top. Both options create a timestamped folder under `outputs/probes/` containing:
+
+- `readiness_pages.parquet` (CSV fallback): per-page text length, has-text flag, black ratio, and mostly-black flag.
+- `readiness_docs.parquet` (CSV fallback): per-document page counts, text coverage, scanned/text/mixed classification, and black-page rollups.
+- `probe_summary.json`: totals, thresholds used, and quick “top 20” lists for most-black and most-scanned documents. It also records how many non-PDF files were present in the same inventory slice (grouped by extension) so you know what was intentionally skipped during the probe.
+- `probe_run_log.json`: arguments, git commit (if available), inventory path, runtime, and any per-file errors.
+
+You can limit scope with `--max-pdfs`, `--max-pages`, or `--only-top-folder` to spot-check a slice of the dataset without touching the full corpus.
+
 ## Project structure
 - `src/config.py`: Configuration, ignore rules, and helpers.
 - `src/app.py`: `InventoryRunner` and `InventoryResult` for IDE-friendly, programmatic runs.
