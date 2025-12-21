@@ -126,5 +126,7 @@ Use the Streamlit dashboard when you want a quick, friendly view of what the inv
 
 Everything stays on your machine—perfect for non-technical reviewers who need a quick health check before deeper processing.
 
+If you launch the dashboard straight from a cloned folder without installing the package (`pip install -e .`), the app now adjusts its import path automatically so `src/*` modules still load. That means you can use `streamlit run app/qa_dashboard.py -- --out ./outputs` from the repo root without extra setup.
+
 ## Why this helps
 This inventory gives a transparent map of what was downloaded—counts, sizes, and file types—without touching document content. The append-only `run_log.jsonl` provides an audit trail for future validation, making it easier to trust the dataset before deeper processing like OCR or parsing.

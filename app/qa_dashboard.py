@@ -5,6 +5,11 @@ import sys
 from pathlib import Path
 from typing import Dict
 
+# Allow running via "streamlit run" without requiring an editable install.
+APP_ROOT = Path(__file__).resolve().parent.parent
+if str(APP_ROOT) not in sys.path:
+    sys.path.insert(0, str(APP_ROOT))
+
 import pandas as pd
 import plotly.express as px
 import streamlit as st
