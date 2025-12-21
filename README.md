@@ -26,8 +26,8 @@ This toolkit inventories DOJ document drops and runs light-touch probes to estim
    ```
 
 ## Minimal inputs
-- **PyCharm scripts**: open `scripts/run_inventory.py` or `scripts/run_probe.py`, edit the two constants at the top (data root/output or inventory/output), and click Run. They delegate to the same package code as the CLI.
-- **CLI**: stick to the commands above; change only the `--root` or `--inventory` values and the output folder if you want a different location.
+- **PyCharm scripts**: open `scripts/run_inventory.py` or `scripts/run_probe.py`, edit the two constants at the top (data root/output or inventory/output), and click Run. They now call the same maintained CLI code path, so you can swap between editor-run scripts and terminal commands without worrying about drift.
+- **CLI**: stick to the commands above; change only the `--root` or `--inventory` values and the output folder if you want a different location. All entry points are backed by the single `doj_doc_explorer.cli` module to reduce duplicated logic.
 
 ## Inventory workflow
 - Command: `python -m doj_doc_explorer.cli inventory run --root <DATA_ROOT> --out ./outputs [--hash sha256|md5|sha1|none] [--ignore ...] [--max-files N]`
@@ -41,8 +41,11 @@ This toolkit inventories DOJ document drops and runs light-touch probes to estim
 - Legacy compatibility: probes can still read a flat `outputs/inventory.csv` or a specific run folder.
 
 ## Streamlit QA dashboards
-- Multipage launcher: `streamlit run app/Home.py -- --out ./outputs`
+- Multipage launcher: `streamlit run app/Home.py -- --out ./outputs`. Use `--server.headless true` if you are running on a remote machine and need a URL to connect from your browser.
 - Pages read stored artifacts only; they do not rerun inventories or probes. Point them at `./outputs` to pick up the latest versioned runs via `LATEST.json`.
+- What you see: the Home page lists available inventories and probe runs. The QA pages chart text readiness, dark-page ratios, and basic file counts so stakeholders can understand what is ready for review without installing Python tools themselves.
+- Data handling: Streamlit reads only from your local `outputs/` folder and never uploads files. You can safely share screenshots or exported charts because the app avoids transmitting underlying documents.
+- Troubleshooting: if Streamlit cannot find data, rerun `python -m doj_doc_explorer.cli self-check` to create expected folders, then rerun an inventory or probe. The CLI will print the exact command needed to launch the dashboards with your chosen output path.
 
 ## Outputs and versioning
 - `outputs/inventory/`: versioned inventory runs plus `LATEST.json`.
