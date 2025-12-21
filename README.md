@@ -153,5 +153,34 @@ Everything stays on your machine—perfect for non-technical reviewers who need 
 
 If you launch the dashboard straight from a cloned folder without installing the package (`pip install -e .`), the app now adjusts its import path automatically so `src/*` modules still load. That means you can use `streamlit run app/qa_fileimport.py -- --out ./outputs` from the repo root without extra setup.
 
+### Multipage dashboard (Inventory + Probe QA)
+For an easier navigation experience, you can now launch a multipage Streamlit app that includes both the Inventory QA view and the new Probe QA dashboard. Start it from the repo root:
+
+```bash
+streamlit run app/Home.py
+```
+
+The sidebar lists **Home**, **Inventory QA**, and **Probe QA**. This layout keeps everything in one place so reviewers can flip between inventory health and probe readiness without re-running commands.
+
+## How to review probe runs (Probe QA dashboard)
+After you run the `probe_readiness` CLI (or `scripts/run_probe.py`) and it writes outputs under `outputs/probes/<probe_run_id>/`, open the Probe QA page to explore those results without recomputing anything.
+
+Launch just the Probe QA page:
+
+```bash
+streamlit run app/pages/02_Probe_QA.py
+```
+
+Or use the multipage launcher above to keep the Inventory QA view close by. The Probe QA dashboard lets non-technical reviewers:
+
+- Pick which probe run to view (by ID and timestamp) and point the UI at any `outputs` root.
+- See executive summary tiles for PDFs processed, pages checked, classification mix, mostly-black counts, and OCR page estimates (baseline and adjusted to skip mostly-black pages).
+- Explore document-level distributions (text coverage, black ratios, classifications, folder rollups) with interactive charts.
+- Download prioritization tables that highlight likely text-ready files, scanned-heavy items, and black/redacted-heavy PDFs.
+- Drill into a single PDF’s pages to see which ones lack text or are mostly black using adjustable display thresholds.
+- Review the recorded probe log (inventory path, arguments, runtime, git commit, and any collected errors) for reproducibility.
+
+All views rely solely on the stored probe artifacts (CSV/Parquet + JSON summaries); the dashboard never re-runs probes or reads document contents.
+
 ## Why this helps
 This inventory gives a transparent map of what was downloaded—counts, sizes, and file types—without touching document content. The append-only `run_log.jsonl` provides an audit trail for future validation, making it easier to trust the dataset before deeper processing like OCR or parsing.

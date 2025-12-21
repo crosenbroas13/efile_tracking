@@ -37,22 +37,59 @@ def _write_table(df: pd.DataFrame, path: Path) -> None:
 def _summarize(
     docs_df: pd.DataFrame, pages_df: pd.DataFrame, config: ProbeConfig, meta: Dict
 ) -> Dict:
-    summary = {
-        "total_pdfs": int(len(docs_df)),
-        "total_pages": int(len(pages_df)),
-        "classification_counts": docs_df["classification"].value_counts(dropna=False).to_dict()
+    total_pdfs = int(len(docs_df))
+    total_pages = int(len(pages_df))
+    if total_pages == 0 and "page_count" in docs_df.columns:
+        total_pages = int(pd.to_numeric(docs_df["page_count"], errors="coerce").fillna(0).sum())
+
+    classification_counts = (
+        docs_df["classification"].value_counts(dropna=False).to_dict()
         if "classification" in docs_df.columns
-        else {},
-    }
+        else {}
+    )
+    classification_pct = (
+        {label: (count / total_pdfs) if total_pdfs else 0 for label, count in classification_counts.items()}
+        if classification_counts
+        else {}
+    )
+
+    pages_with_text = 0
+    if "has_text" in pages_df.columns:
+        pages_with_text = int(pages_df[pages_df["has_text"] == True].shape[0])  # noqa: E712
+    elif "pages_with_text" in docs_df.columns:
+        pages_with_text = int(pd.to_numeric(docs_df["pages_with_text"], errors="coerce").fillna(0).sum())
+
+    baseline_ocr_pages = max(total_pages - pages_with_text, 0)
+
     ignored_counts = meta.get("ignored_non_pdf_files", {}) if meta else {}
-    summary["ignored_non_pdf_files"] = ignored_counts
-    summary["ignored_non_pdf_total"] = int(sum(ignored_counts.values())) if ignored_counts else 0
+    ignored_mime_counts = meta.get("ignored_non_pdf_mime_types", {}) if meta else {}
+
+    summary = {
+        "total_pdfs": total_pdfs,
+        "total_pages": total_pages,
+        "classification_counts": classification_counts,
+        "classification_pct": classification_pct,
+        "ignored_non_pdf_files": ignored_counts,
+        "ignored_non_pdf_mime_types": ignored_mime_counts,
+        "ignored_non_pdf_total": int(sum(ignored_counts.values())) if ignored_counts else 0,
+        "pages_with_text": pages_with_text,
+        "pages_without_text": baseline_ocr_pages,
+        "estimated_ocr_pages_baseline": baseline_ocr_pages,
+        "estimated_ocr_pages_baseline_pct": (baseline_ocr_pages / total_pages) if total_pages else 0,
+    }
+
+    mostly_black_count = 0
     if "is_mostly_black" in pages_df.columns:
         mostly_black_count = int(pages_df[pages_df["is_mostly_black"] == True].shape[0])  # noqa: E712
         summary["mostly_black_pages"] = mostly_black_count
-        summary["mostly_black_pct"] = (mostly_black_count / summary["total_pages"]) if summary["total_pages"] else 0
+        summary["mostly_black_pct"] = (mostly_black_count / total_pages) if total_pages else 0
         summary["estimated_ocr_avoidable_pages"] = mostly_black_count
-        summary["estimated_ocr_avoidable_pct"] = summary["mostly_black_pct"]
+        summary["estimated_ocr_avoidable_pct"] = summary.get("mostly_black_pct", 0)
+
+    adjusted_ocr_pages = max(baseline_ocr_pages - mostly_black_count, 0)
+    summary["estimated_ocr_pages_adjusted"] = adjusted_ocr_pages
+    summary["estimated_ocr_pages_adjusted_pct"] = (adjusted_ocr_pages / total_pages) if total_pages else 0
+
     if "mostly_black_pct" in docs_df:
         top_black = docs_df.sort_values("mostly_black_pct", ascending=False).head(20)
         summary["top_black_docs"] = top_black[["doc_id", "rel_path", "mostly_black_pct"]].fillna(0).to_dict(orient="records")
@@ -93,6 +130,7 @@ def write_probe_outputs(
 
     run_log = {
         "probe_run_id": probe_run_id,
+        "timestamp": datetime.utcnow().isoformat() + "Z",
         "inventory_path": str(config.inventory_path),
         "output_root": str(config.output_root),
         "config": config.to_dict(),
