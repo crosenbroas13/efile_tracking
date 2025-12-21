@@ -18,7 +18,17 @@ def _git_commit() -> str:
 
 def run_inventory(args: argparse.Namespace) -> None:
     root = Path(args.root).expanduser().resolve()
+    if not root.exists():
+        raise SystemExit(
+            f"Dataset root does not exist: {root}. Provide a folder that already contains your files to scan."
+        )
+    if not root.is_dir():
+        raise SystemExit(f"Dataset root must be a directory, but received: {root}")
+    if args.max_files is not None and args.max_files <= 0:
+        raise SystemExit("--max-files must be a positive integer when provided.")
+
     out_dir = Path(args.out).expanduser()
+    out_dir.mkdir(parents=True, exist_ok=True)
     config = InventoryConfig(
         root=root,
         out_dir=out_dir,
@@ -29,6 +39,13 @@ def run_inventory(args: argparse.Namespace) -> None:
         max_files=args.max_files,
     )
     start = time.time()
+    print(
+        "Starting scan...\n"
+        f"  Data folder: {root}\n"
+        f"  Outputs -> {out_dir}\n"
+        f"  Hash algorithm: {args.hash} (sample bytes: {args.sample_bytes})\n"
+        f"  Max files: {'no limit' if args.max_files is None else args.max_files}"
+    )
     records, errors = scan_inventory(config)
     csv_path = write_inventory_csv(records, out_dir)
     summary = build_summary(records)
@@ -53,12 +70,16 @@ def run_inventory(args: argparse.Namespace) -> None:
     append_run_log(log_entry, out_dir)
     print(f"Inventory complete: {csv_path}")
     print(f"Summary written: {summary_path}")
+    print(f"Files scanned: {len(records)} in {runtime:.2f}s")
     if errors:
         print(f"Encountered {len(errors)} issues; see run_log.jsonl for details.")
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Dataset inventory and manifest CLI")
+    parser = argparse.ArgumentParser(
+        description="Dataset inventory and manifest CLI",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
     subparsers = parser.add_subparsers(dest="command")
 
     inv = subparsers.add_parser("inventory", help="Scan a dataset directory")
