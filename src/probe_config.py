@@ -9,8 +9,11 @@ class ProbeConfig:
     text_char_threshold: int = 25
     doc_text_pct_text: float = 0.90
     doc_text_pct_scanned: float = 0.10
-    black_threshold_intensity: int = 40
-    mostly_black_ratio: float = 0.90
+    fixed_black_intensity: int = 40
+    mostly_black_ratio_fixed: float = 0.90
+    adaptive_percentile: float = 10.0
+    mostly_black_ratio_adapt: float = 0.90
+    dark_page_median_cutoff: float = 90.0
     render_dpi: int = 72
     center_crop_pct: float = 0.70
     use_center_crop: bool = True
@@ -20,6 +23,18 @@ class ProbeConfig:
     skip_text_check: bool = False
     seed: int | None = None
     only_top_folder: str | None = None
+
+    @property
+    def black_threshold_intensity(self) -> int:
+        """Backward-compatible alias for deprecated name."""
+
+        return self.fixed_black_intensity
+
+    @property
+    def mostly_black_ratio(self) -> float:
+        """Backward-compatible alias for deprecated name."""
+
+        return self.mostly_black_ratio_fixed
 
     def to_dict(self) -> dict:
         data = self.__dict__.copy()

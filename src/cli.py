@@ -48,8 +48,11 @@ def run_probe_cli(args: argparse.Namespace) -> None:
         text_char_threshold=args.text_threshold,
         doc_text_pct_text=args.doc_text_pct_text,
         doc_text_pct_scanned=args.doc_text_pct_scanned,
-        black_threshold_intensity=args.black_intensity,
-        mostly_black_ratio=args.mostly_black,
+        fixed_black_intensity=args.black_intensity,
+        mostly_black_ratio_fixed=args.mostly_black,
+        adaptive_percentile=args.adaptive_percentile,
+        mostly_black_ratio_adapt=args.mostly_black_adapt,
+        dark_page_median_cutoff=args.dark_page_median_cutoff,
         render_dpi=args.dpi,
         center_crop_pct=args.center_crop_pct,
         use_center_crop=args.use_center_crop,
@@ -90,6 +93,9 @@ def build_parser() -> argparse.ArgumentParser:
     probe.add_argument("--doc-text-pct-scanned", type=float, default=0.10, help="Pct of pages with text to call doc scanned")
     probe.add_argument("--mostly-black", type=float, default=0.90, help="Black pixel ratio threshold")
     probe.add_argument("--black-intensity", type=int, default=40, help="Grayscale value to count as black (0-255)")
+    probe.add_argument("--adaptive-percentile", type=float, default=10.0, help="Percentile used for adaptive darkness cutoff")
+    probe.add_argument("--mostly-black-adapt", type=float, default=0.90, help="Adaptive ratio threshold for dark pages")
+    probe.add_argument("--dark-page-median-cutoff", type=float, default=90.0, help="Median grayscale cutoff for dark-page rule")
     probe.add_argument("--use-center-crop", action="store_true", default=True, help="Enable center crop for black detection")
     probe.add_argument("--no-center-crop", action="store_false", dest="use_center_crop", help="Disable center crop evaluation")
     probe.add_argument("--center-crop-pct", type=float, default=0.70, help="Portion of center used for crop")

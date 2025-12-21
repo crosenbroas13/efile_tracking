@@ -36,8 +36,24 @@ def run_probe(config: ProbeConfig) -> Tuple[pd.DataFrame, pd.DataFrame, Dict]:
     else:
         pages_df = text_pages
         if not pages_df.empty:
-            pages_df["black_ratio"] = None
-            pages_df["is_mostly_black"] = None
+            for col in [
+                "black_ratio",
+                "black_ratio_full",
+                "black_ratio_center",
+                "adaptive_black_ratio",
+                "adaptive_black_ratio_full",
+                "adaptive_black_ratio_center",
+                "black_threshold_adapt",
+                "gray_mean",
+                "gray_median",
+                "gray_p10",
+                "gray_p25",
+                "gray_p75",
+                "gray_std",
+                "is_mostly_black",
+            ]:
+                if col not in pages_df.columns:
+                    pages_df[col] = None
 
     base_docs = pdfs[["doc_id", "rel_path", "abs_path", "top_level_folder"]].copy()
     if not text_docs.empty:
