@@ -121,31 +121,43 @@ def main():
     st.title("Probe QA")
     st.caption("Explore probe outputs without recomputing anything. All data stays local.")
 
-    with st.sidebar:
-        out_dir_text = st.text_input("Output folder", value=str(DEFAULT_OUT_DIR))
-        runs = cached_list_probe_runs(out_dir_text)
-        if not runs:
-            st.warning("No probe runs detected under this output folder yet.")
-            st.stop()
-        options = { _format_run_option(run): run for run in runs }
-        labels = list(options.keys())
-        selected_label = st.selectbox("Probe run", labels)
-        selected_run = options[selected_label]
+    st.markdown(
+        """
+        **Choose where to look:** point to the folder that already contains your probe outputs, then pick a run ID.
+        This page only reads saved results on your machine—changing the folder simply switches which saved probes you are reviewing.
+        """
+    )
 
-        summary = selected_run.get("summary", {})
-        thresholds = summary.get("thresholds", {})
-        text_threshold_default = int(thresholds.get("text_char_threshold", 25))
-        black_ratio_default = float(thresholds.get("mostly_black_ratio", 0.9))
+    picker = st.container()
+    pick_cols = picker.columns([2, 2, 1])
+    out_dir_text = pick_cols[0].text_input("Output folder", value=str(DEFAULT_OUT_DIR))
+    runs = cached_list_probe_runs(out_dir_text)
+    if not runs:
+        picker.warning("No probe runs detected under this output folder yet.")
+        st.stop()
+    options = {_format_run_option(run): run for run in runs}
+    labels = list(options.keys())
+    selected_label = pick_cols[1].selectbox("Probe run", labels)
+    selected_run = options[selected_label]
 
-        show_mostly_black = st.checkbox("Show mostly-black pages", value=False)
-        exclude_black_from_ocr = st.checkbox("Exclude mostly-black from OCR estimate", value=True)
-        show_only_issues = st.checkbox("Only show issues", value=False)
-        text_char_threshold_display = st.slider(
-            "Text character threshold (display only)", min_value=0, max_value=500, value=text_threshold_default, step=5
-        )
-        mostly_black_ratio_display = st.slider(
-            "Mostly-black ratio (display only)", min_value=0.0, max_value=1.0, value=black_ratio_default, step=0.05
-        )
+    summary = selected_run.get("summary", {})
+    thresholds = summary.get("thresholds", {})
+    text_threshold_default = int(thresholds.get("text_char_threshold", 25))
+    black_ratio_default = float(thresholds.get("mostly_black_ratio", 0.9))
+
+    with pick_cols[2]:
+        st.markdown("**Display options**")
+        show_mostly_black = st.checkbox("Mostly-black pages", value=False)
+        exclude_black_from_ocr = st.checkbox("Skip black in OCR", value=True)
+        show_only_issues = st.checkbox("Only issues", value=False)
+
+    slider_cols = st.columns(2)
+    text_char_threshold_display = slider_cols[0].slider(
+        "Text character threshold (display only)", min_value=0, max_value=500, value=text_threshold_default, step=5
+    )
+    mostly_black_ratio_display = slider_cols[1].slider(
+        "Mostly-black ratio (display only)", min_value=0.0, max_value=1.0, value=black_ratio_default, step=0.05
+    )
 
     docs_df, pages_df, summary, run_log = cached_load_probe_run(out_dir_text, selected_run["probe_run_id"])
     totals = _compute_totals(docs_df, pages_df, summary)
