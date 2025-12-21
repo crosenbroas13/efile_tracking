@@ -115,14 +115,13 @@ Use the Streamlit dashboard when you want a quick, friendly view of what the inv
    ```bash
    streamlit run app/qa_dashboard.py -- --out ./outputs
    ```
-3. The sidebar lets you pick the output folder, choose which `inventory.csv` to view, toggle whether identical hashes count as duplicates, and focus only on files with potential issues. Adjust the "Very large file" threshold if you want stricter or looser alerts.
+3. Use the left-hand navigation to open the QA Dashboard (the home page is ready for future tools). Dashboard controls now sit at the top of the page so reviewers can choose an output folder, upload an `inventory.csv` directly from their computer, and adjust the "Very large file" threshold without leaving the main view.
 4. The main page shows:
    - **Executive summary** totals for files, sizes, and run-log error counts.
-   - **Dataset structure** rollups to see which top-level folders dominate the dataset and where deeply nested files live.
+   - **Dataset structure** rollups to see which top-level folders dominate the dataset and which file types are most common.
    - **File type & size QA** tables and charts that highlight unusual extensions or oversized files.
- - **Duplicates & integrity** summaries when hashes are available.
- - **Potential issues** with a downloadable CSV so you can triage edge cases quickly.
- - **Run history** from `run_log.jsonl` so you can tie the view back to specific inventory runs.
+   - **Run history** from `run_log.jsonl` so you can tie the view back to specific inventory runs.
+   - **PDF export** button to download a lightweight summary that can be shared with non-technical reviewers without exposing file contents.
 
 The dashboard skips over missing or malformed modified-time values in the CSV so it can still load inventories created on
 different machines without breaking.
