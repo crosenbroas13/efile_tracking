@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 from PIL import Image
 
 _fitz_spec = importlib.util.find_spec("fitz")
@@ -33,31 +33,34 @@ LOGGER = logging.getLogger(__name__)
 
 @dataclass
 class BlackPageMetrics:
-    full_ratio: float
-    center_ratio: float
-    adaptive_full_ratio: float
-    adaptive_center_ratio: float
-    mean_luminance: float
-    std_luminance: float
+    ratio_fixed_full: float
+    ratio_fixed_center: float
+    ratio_adapt_full: float
+    ratio_adapt_center: float
+    gray_mean: float
+    gray_median: float
+    gray_p10: float
+    gray_p25: float
+    gray_p75: float
+    gray_std: float
+    threshold_adapt_full: float
+    threshold_adapt_center: float
 
     @property
-    def dominant_ratio(self) -> float:
-        """Highest darkness signal from absolute, adaptive, and crop checks."""
+    def ratio_fixed(self) -> float:
+        return max(self.ratio_fixed_full, self.ratio_fixed_center)
 
-        return max(
-            self.full_ratio,
-            self.center_ratio,
-            self.adaptive_full_ratio,
-            self.adaptive_center_ratio,
-            self._mean_darkness_signal(),
+    @property
+    def ratio_adapt(self) -> float:
+        return max(self.ratio_adapt_full, self.ratio_adapt_center)
+
+    @property
+    def threshold_adapt(self) -> float:
+        return (
+            self.threshold_adapt_center
+            if self.ratio_adapt_center >= self.ratio_adapt_full
+            else self.threshold_adapt_full
         )
-
-    def _mean_darkness_signal(self) -> float:
-        """Use mean luminance as a gentle fallback for low-contrast dark pages."""
-
-        if self.std_luminance < 25:
-            return max(0.0, min(1.0, 1 - (self.mean_luminance / 255)))
-        return 0.0
 
 
 def _pixmap_to_image(pixmap) -> Image.Image:
@@ -87,43 +90,121 @@ def render_page(path: Path, page_index: int, dpi: int = 72) -> Image.Image | Non
     return None
 
 
-def _black_ratio_from_image(
-    img: Image.Image, black_intensity: int, center_crop_pct: float, use_center: bool
-) -> BlackPageMetrics:
-    gray_array = np.asarray(img.convert("L"), dtype=np.uint8)
-    total_pixels = gray_array.size
-    mean_luminance = float(gray_array.mean()) if total_pixels else 0.0
-    std_luminance = float(gray_array.std()) if total_pixels else 0.0
+def _center_crop(gray_array: np.ndarray, center_crop_pct: float) -> np.ndarray:
+    height, width = gray_array.shape
+    crop_w = max(1, int(width * center_crop_pct))
+    crop_h = max(1, int(height * center_crop_pct))
+    start_x = max(0, (width - crop_w) // 2)
+    start_y = max(0, (height - crop_h) // 2)
+    return gray_array[start_y : start_y + crop_h, start_x : start_x + crop_w]
 
-    absolute_mask = gray_array <= black_intensity
-    full_ratio = float(absolute_mask.mean()) if total_pixels else 0.0
 
-    adaptive_cutoff = min(black_intensity + 30, max(0.0, mean_luminance - std_luminance))
-    adaptive_mask = gray_array <= adaptive_cutoff
-    adaptive_full_ratio = float(adaptive_mask.mean()) if total_pixels else 0.0
+def _ratio_leq(gray_flat: np.ndarray, threshold: float) -> float:
+    if gray_flat.size == 0:
+        return 0.0
+    threshold_index = int(np.floor(threshold))
+    hist = np.bincount(gray_flat, minlength=256)
+    count = hist[: threshold_index + 1].sum()
+    return float(count / gray_flat.size)
 
-    center_ratio = 0.0
-    adaptive_center_ratio = 0.0
-    if use_center:
-        height, width = gray_array.shape
-        crop_w = int(width * center_crop_pct)
-        crop_h = int(height * center_crop_pct)
-        start_x = (width - crop_w) // 2
-        start_y = (height - crop_h) // 2
-        crop = gray_array[start_y : start_y + crop_h, start_x : start_x + crop_w]
-        crop_size = crop.size
-        if crop_size:
-            center_ratio = float((crop <= black_intensity).mean())
-            adaptive_center_ratio = float((crop <= adaptive_cutoff).mean())
 
-    return BlackPageMetrics(
-        full_ratio=full_ratio,
-        center_ratio=center_ratio,
-        adaptive_full_ratio=adaptive_full_ratio,
-        adaptive_center_ratio=adaptive_center_ratio,
-        mean_luminance=mean_luminance,
-        std_luminance=std_luminance,
+def compute_darkness_metrics(gray_array: np.ndarray, config: ProbeConfig) -> Dict:
+    gray = np.asarray(gray_array, dtype=np.uint8)
+    flat = gray.reshape(-1)
+    total_pixels = flat.size
+    if total_pixels == 0:
+        return {
+            "gray_mean": 0.0,
+            "gray_median": 0.0,
+            "gray_p10": 0.0,
+            "gray_p25": 0.0,
+            "gray_p75": 0.0,
+            "gray_std": 0.0,
+            "black_ratio_fixed_full": 0.0,
+            "black_ratio_fixed_center": 0.0,
+            "black_ratio_fixed": 0.0,
+            "black_ratio_adapt_full": 0.0,
+            "black_ratio_adapt_center": 0.0,
+            "black_ratio_adapt": 0.0,
+            "black_threshold_adapt_full": 0.0,
+            "black_threshold_adapt_center": 0.0,
+            "black_threshold_adapt": 0.0,
+            "is_mostly_black": False,
+        }
+
+    gray_mean = float(gray.mean())
+    gray_std = float(gray.std())
+    gray_median = float(np.median(flat))
+    gray_p10 = float(np.percentile(flat, 10))
+    gray_p25 = float(np.percentile(flat, 25))
+    gray_p75 = float(np.percentile(flat, 75))
+
+    t_adapt_full = float(np.percentile(flat, config.adaptive_percentile))
+    ratio_fixed_full = _ratio_leq(flat, config.fixed_black_intensity)
+    ratio_adapt_full = _ratio_leq(flat, t_adapt_full)
+
+    ratio_fixed_center = 0.0
+    ratio_adapt_center = 0.0
+    t_adapt_center = 0.0
+    if config.use_center_crop:
+        crop = _center_crop(gray, config.center_crop_pct)
+        crop_flat = crop.reshape(-1)
+        t_adapt_center = float(np.percentile(crop_flat, config.adaptive_percentile)) if crop_flat.size else 0.0
+        ratio_fixed_center = _ratio_leq(crop_flat, config.fixed_black_intensity) if crop_flat.size else 0.0
+        ratio_adapt_center = _ratio_leq(crop_flat, t_adapt_center) if crop_flat.size else 0.0
+
+    ratio_fixed = max(ratio_fixed_full, ratio_fixed_center)
+    ratio_adapt = max(ratio_adapt_full, ratio_adapt_center)
+    threshold_adapt = t_adapt_center if ratio_adapt_center >= ratio_adapt_full else t_adapt_full
+
+    is_mostly_black = bool(
+        (ratio_fixed >= config.mostly_black_ratio_fixed)
+        or (
+            gray_median <= config.dark_page_median_cutoff
+            and ratio_adapt >= config.mostly_black_ratio_adapt
+        )
     )
+
+    metrics = BlackPageMetrics(
+        ratio_fixed_full=ratio_fixed_full,
+        ratio_fixed_center=ratio_fixed_center,
+        ratio_adapt_full=ratio_adapt_full,
+        ratio_adapt_center=ratio_adapt_center,
+        gray_mean=gray_mean,
+        gray_median=gray_median,
+        gray_p10=gray_p10,
+        gray_p25=gray_p25,
+        gray_p75=gray_p75,
+        gray_std=gray_std,
+        threshold_adapt_full=t_adapt_full,
+        threshold_adapt_center=t_adapt_center,
+    )
+
+    return {
+        "gray_mean": metrics.gray_mean,
+        "gray_median": metrics.gray_median,
+        "gray_p10": metrics.gray_p10,
+        "gray_p25": metrics.gray_p25,
+        "gray_p75": metrics.gray_p75,
+        "gray_std": metrics.gray_std,
+        "black_ratio_fixed_full": metrics.ratio_fixed_full,
+        "black_ratio_fixed_center": metrics.ratio_fixed_center,
+        "black_ratio_fixed": metrics.ratio_fixed,
+        "black_ratio_adapt_full": metrics.ratio_adapt_full,
+        "black_ratio_adapt_center": metrics.ratio_adapt_center,
+        "black_ratio_adapt": metrics.ratio_adapt,
+        "black_threshold_adapt_full": metrics.threshold_adapt_full,
+        "black_threshold_adapt_center": metrics.threshold_adapt_center,
+        "black_threshold_adapt": metrics.threshold_adapt,
+        "is_mostly_black": is_mostly_black,
+    }
+
+
+def _black_ratio_from_image(
+    img: Image.Image, config: ProbeConfig
+) -> Dict:
+    gray_array = np.asarray(img.convert("L"), dtype=np.uint8)
+    return compute_darkness_metrics(gray_array, config)
 
 
 def evaluate_black_pages(
@@ -133,7 +214,13 @@ def evaluate_black_pages(
 ) -> tuple[pd.DataFrame, pd.DataFrame, List[Dict]]:
     records: List[Dict] = []
     doc_records: Dict[str, Dict] = {
-        row.doc_id: {"pages_mostly_black": 0, "page_count": 0, "ratios": []} for row in pdfs.itertuples()
+        row.doc_id: {
+            "pages_mostly_black": 0,
+            "page_count": 0,
+            "ratios": [],
+            "gray_medians": [],
+        }
+        for row in pdfs.itertuples()
     }
     errors: List[Dict] = []
 
@@ -176,15 +263,28 @@ def evaluate_black_pages(
                         "errors": [f"Failed to render page {idx+1}"],
                     }
                 )
-                continue
-            metrics = _black_ratio_from_image(
-                img,
-                black_intensity=config.black_threshold_intensity,
-                center_crop_pct=config.center_crop_pct,
-                use_center=config.use_center_crop,
-            )
-            ratio = metrics.dominant_ratio
-            is_black = ratio >= config.mostly_black_ratio
+                metrics_dict = {
+                    "gray_mean": None,
+                    "gray_median": None,
+                    "gray_p10": None,
+                    "gray_p25": None,
+                    "gray_p75": None,
+                    "gray_std": None,
+                    "black_ratio_fixed_full": None,
+                    "black_ratio_fixed_center": None,
+                    "black_ratio_fixed": None,
+                    "black_ratio_adapt_full": None,
+                    "black_ratio_adapt_center": None,
+                    "black_ratio_adapt": None,
+                    "black_threshold_adapt_full": None,
+                    "black_threshold_adapt_center": None,
+                    "black_threshold_adapt": None,
+                    "is_mostly_black": None,
+                }
+            else:
+                metrics_dict = _black_ratio_from_image(img, config)
+            ratio = metrics_dict.get("black_ratio_fixed") or 0.0
+            is_black = bool(metrics_dict.get("is_mostly_black"))
             base_record = {
                 "doc_id": row.doc_id,
                 "rel_path": getattr(row, "rel_path", None),
@@ -193,14 +293,20 @@ def evaluate_black_pages(
                 "page_num": idx + 1,
                 "text_char_count": None,
                 "has_text": None,
-                "black_ratio": ratio,
-                "black_ratio_full": metrics.full_ratio,
-                "black_ratio_center": metrics.center_ratio,
-                "adaptive_black_ratio": metrics.adaptive_full_ratio,
-                "adaptive_black_ratio_center": metrics.adaptive_center_ratio,
-                "mean_luminance": metrics.mean_luminance,
-                "std_luminance": metrics.std_luminance,
-                "is_mostly_black": is_black,
+                "black_ratio": metrics_dict.get("black_ratio_fixed"),
+                "black_ratio_full": metrics_dict.get("black_ratio_fixed_full"),
+                "black_ratio_center": metrics_dict.get("black_ratio_fixed_center"),
+                "adaptive_black_ratio": metrics_dict.get("black_ratio_adapt"),
+                "adaptive_black_ratio_full": metrics_dict.get("black_ratio_adapt_full"),
+                "adaptive_black_ratio_center": metrics_dict.get("black_ratio_adapt_center"),
+                "black_threshold_adapt": metrics_dict.get("black_threshold_adapt"),
+                "gray_mean": metrics_dict.get("gray_mean"),
+                "gray_median": metrics_dict.get("gray_median"),
+                "gray_p10": metrics_dict.get("gray_p10"),
+                "gray_p25": metrics_dict.get("gray_p25"),
+                "gray_p75": metrics_dict.get("gray_p75"),
+                "gray_std": metrics_dict.get("gray_std"),
+                "is_mostly_black": metrics_dict.get("is_mostly_black"),
             }
             if page_lookup is not None and (row.doc_id, idx + 1) in page_lookup.index:
                 merged = base_record | page_lookup.loc[(row.doc_id, idx + 1)].to_dict()
@@ -208,16 +314,24 @@ def evaluate_black_pages(
             else:
                 records.append(base_record)
             doc_records[row.doc_id]["page_count"] += 1
-            doc_records[row.doc_id]["ratios"].append(ratio)
+            if metrics_dict.get("black_ratio_fixed") is not None:
+                doc_records[row.doc_id]["ratios"].append(metrics_dict.get("black_ratio_fixed") or 0.0)
+            if metrics_dict.get("gray_median") is not None:
+                doc_records[row.doc_id]["gray_medians"].append(metrics_dict.get("gray_median") or 0.0)
             if is_black:
                 doc_records[row.doc_id]["pages_mostly_black"] += 1
 
     doc_rows: List[Dict] = []
     for row in pdfs.itertuples(index=False):
-        doc_entry = doc_records.get(row.doc_id, {"pages_mostly_black": 0, "page_count": 0, "ratios": []})
+        doc_entry = doc_records.get(
+            row.doc_id, {"pages_mostly_black": 0, "page_count": 0, "ratios": [], "gray_medians": []}
+        )
         page_count = doc_entry["page_count"]
         mostly_black = doc_entry["pages_mostly_black"]
         ratio_list = doc_entry["ratios"]
+        median_list = doc_entry.get("gray_medians", [])
+        avg_gray_median = sum(median_list) / len(median_list) if median_list else 0
+        p50_gray_median = float(np.median(median_list)) if median_list else 0
         doc_rows.append(
             {
                 "doc_id": row.doc_id,
@@ -228,6 +342,8 @@ def evaluate_black_pages(
                 "pages_mostly_black": mostly_black,
                 "mostly_black_pct": (mostly_black / page_count) if page_count else 0,
                 "black_ratio_avg": sum(ratio_list) / len(ratio_list) if ratio_list else 0,
+                "gray_median_avg": avg_gray_median,
+                "gray_median_p50": p50_gray_median,
             }
         )
 
@@ -239,4 +355,5 @@ __all__ = [
     "render_page",
     "evaluate_black_pages",
     "_black_ratio_from_image",
+    "compute_darkness_metrics",
 ]

@@ -119,6 +119,13 @@ You can limit scope with `--max-pdfs`, `--max-pages`, or `--only-top-folder` to 
 
 The black-page check now reuses a single grayscale copy of each page to calculate whole-page, center-crop, and adaptive darkness ratios in one pass. Those vectorized metrics record mean luminance and contrast alongside the ratios, speeding up the probe and giving non-technical reviewers clearer evidence when a low-contrast page is genuinely dark.
 
+### Mostly-black detection: how it works and why it is safer
+
+- **Two complementary signals.** Every page now reports both a fixed black ratio (counting pixels darker than a chosen grayscale value) and an adaptive ratio that uses the page’s own luminance percentile as a cutoff. This catches dark scans and obvious blacked-out pages without confusing normal dark text on light paper.
+- **Center crop safety net.** Each ratio is computed for the full page and an optional center crop, and the probe records the stronger of the two so center-focused redactions are still flagged.
+- **Helpful brightness stats.** Mean, median, and several percentile luminance values are stored per page to show how dark a page really is—no images are ever saved to disk.
+- **All local, no undoing redactions.** The probe renders low-DPI images only in memory, never writes them to disk, and never tries to reverse redactions. Outputs stay numeric so non-technical reviewers can judge risk without handling sensitive content.
+
 ## Project structure
 - `src/config.py`: Configuration, ignore rules, and helpers.
 - `src/app.py`: `InventoryRunner` and `InventoryResult` for IDE-friendly, programmatic runs.

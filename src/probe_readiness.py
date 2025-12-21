@@ -5,8 +5,15 @@ import random
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
+import importlib.util
+
 import pandas as pd
-from pypdf import PdfReader
+
+_pypdf_spec = importlib.util.find_spec("pypdf")
+if _pypdf_spec:
+    from pypdf import PdfReader
+else:  # pragma: no cover - optional dependency guard
+    PdfReader = None
 
 from src.probe_config import ProbeConfig
 
@@ -59,6 +66,10 @@ def _extract_page_text(page) -> str:
 
 
 def _process_pdf_text(path: Path, config: ProbeConfig, max_pages: int = 0) -> Dict:
+    if PdfReader is None:
+        msg = "pypdf is not installed; text extraction skipped"
+        LOGGER.warning(msg)
+        return {"error": msg, "pages": [], "page_count": 0}
     try:
         reader = PdfReader(str(path))
     except Exception as exc:  # encryption or unreadable
