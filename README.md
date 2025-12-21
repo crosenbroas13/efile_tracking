@@ -80,6 +80,14 @@ If you prefer clicking "Run" in PyCharm instead of typing commands, use the new 
 2. Update the constants at the top of the file so they point to your data folder and the output directory you want to use. They default to the repo's gitignored `data/` and `outputs/` folders so you can experiment safely.
 3. Right-click `src/main.py` and choose **Run 'main'**. PyCharm will execute the same inventory process as the CLI and print a short summary in the Run tool window.
 
+If you prefer the terminal, you can also launch the IDE entrypoint directly with:
+
+```bash
+python src/main.py
+```
+
+The script now adjusts its imports automatically so it runs correctly whether you call it as a module (`python -m src.main`) or as a file path. This makes it easier for non-CLI users to try the inventory without extra setup.
+
 Behind the scenes, both the CLI and `main.py` rely on the shared `InventoryRunner` class. That runner bundles the path validation, scanning logic, and logging so you get identical results whether you are in a shell or inside the IDE.
 
 ## Project structure
