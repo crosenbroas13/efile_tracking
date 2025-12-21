@@ -120,9 +120,12 @@ Use the Streamlit dashboard when you want a quick, friendly view of what the inv
    - **Executive summary** totals for files, sizes, and run-log error counts.
    - **Dataset structure** rollups to see which top-level folders dominate the dataset and where deeply nested files live.
    - **File type & size QA** tables and charts that highlight unusual extensions or oversized files.
-   - **Duplicates & integrity** summaries when hashes are available.
-   - **Potential issues** with a downloadable CSV so you can triage edge cases quickly.
-   - **Run history** from `run_log.jsonl` so you can tie the view back to specific inventory runs.
+ - **Duplicates & integrity** summaries when hashes are available.
+ - **Potential issues** with a downloadable CSV so you can triage edge cases quickly.
+ - **Run history** from `run_log.jsonl` so you can tie the view back to specific inventory runs.
+
+The dashboard skips over missing or malformed modified-time values in the CSV so it can still load inventories created on
+different machines without breaking.
 
 Everything stays on your machine—perfect for non-technical reviewers who need a quick health check before deeper processing.
 

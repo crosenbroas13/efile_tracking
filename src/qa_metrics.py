@@ -50,16 +50,26 @@ def human_readable_bytes(num_bytes: float | int) -> str:
 
 
 def safe_parse_datetime(value) -> Optional[datetime]:
-    if value in (None, "", pd.NA):
+    if value is None or value == "":
         return None
+
+    if isinstance(value, pd.Series):
+        value = value.iloc[0]
+
+    if pd.isna(value):
+        return None
+
     try:
         ts = pd.to_datetime(value, utc=True, errors="coerce")
     except Exception:
         return None
-    if pd.isna(ts):
-        return None
+
     if isinstance(ts, pd.Series):
         ts = ts.iloc[0]
+
+    if pd.isna(ts):
+        return None
+
     return ts.to_pydatetime()
 
 
