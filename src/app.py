@@ -73,11 +73,33 @@ class InventoryRunner:
 
         return raw_root.resolve()
 
+    @staticmethod
+    def _resolve_out_dir(out_dir: Path | str) -> Path:
+        """Normalize the output directory, fixing common absolute-path typos.
+
+        Users sometimes paste an absolute path without its leading slash. When
+        the parent folder exists (for example, `/Users/alex/Downloads`), treat
+        it as an absolute path so we do not quietly write outputs in the wrong
+        project directory. For everything else, return an absolute path to keep
+        logs and printouts consistent.
+        """
+
+        raw_out = Path(out_dir).expanduser()
+
+        if raw_out.is_absolute():
+            return raw_out.resolve()
+
+        probable_absolute = Path("/", *raw_out.parts)
+        if probable_absolute.exists() or probable_absolute.parent.exists():
+            return probable_absolute.resolve()
+
+        return raw_out.resolve()
+
     def create_config(
         self,
         *,
         root: Path | str,
-        out_dir: Path,
+        out_dir: Path | str,
         hash_algorithm: str = "sha256",
         sample_bytes: int = 0,
         ignore_patterns: Optional[List[str]] = None,
@@ -91,7 +113,7 @@ class InventoryRunner:
 
         return InventoryConfig(
             root=root_path,
-            out_dir=out_dir.expanduser(),
+            out_dir=self._resolve_out_dir(out_dir),
             hash_algorithm=hash_algorithm,
             sample_bytes=sample_bytes,
             ignore_patterns=normalize_patterns(ignore_patterns or []),
