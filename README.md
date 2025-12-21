@@ -88,6 +88,8 @@ python src/main.py
 
 The script now adjusts its imports automatically so it runs correctly whether you call it as a module (`python -m src.main`) or as a file path. This makes it easier for non-CLI users to try the inventory without extra setup.
 
+If you paste an absolute path into `DEFAULT_DATA_ROOT`, make sure it keeps the leading slash (for example, `/Users/<you>/Documents`). If you accidentally drop that slash, the runner now notices and corrects it when the intended folder exists, so you do not end up scanning the wrong location.
+
 Behind the scenes, both the CLI and `main.py` rely on the shared `InventoryRunner` class. That runner bundles the path validation, scanning logic, and logging so you get identical results whether you are in a shell or inside the IDE.
 
 ## Project structure

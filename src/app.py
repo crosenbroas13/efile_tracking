@@ -51,10 +51,32 @@ class InventoryRunner:
         if not root.is_dir():
             raise ValueError(f"Dataset root must be a directory, but received: {root}")
 
+    @staticmethod
+    def _resolve_root(root: Path | str) -> Path:
+        """Resolve the provided root, correcting common absolute-path typos.
+
+        Developers sometimes paste an absolute path without the leading slash
+        (for example, `Users/...` on macOS). In that case, the path resolves
+        relative to the repo and validation fails with a confusing message.
+        When we detect that pattern and the intended folder exists, we
+        normalize it to the real absolute location.
+        """
+
+        raw_root = Path(root).expanduser()
+
+        if raw_root.is_absolute():
+            return raw_root.resolve()
+
+        probable_absolute = Path("/", *raw_root.parts)
+        if probable_absolute.exists():
+            return probable_absolute.resolve()
+
+        return raw_root.resolve()
+
     def create_config(
         self,
         *,
-        root: Path,
+        root: Path | str,
         out_dir: Path,
         hash_algorithm: str = "sha256",
         sample_bytes: int = 0,
@@ -62,7 +84,7 @@ class InventoryRunner:
         follow_symlinks: bool = False,
         max_files: Optional[int] = None,
     ) -> InventoryConfig:
-        root_path = root.expanduser().resolve()
+        root_path = self._resolve_root(root)
         self._validate_root(root_path)
         if max_files is not None and max_files <= 0:
             raise ValueError("--max-files must be a positive integer when provided.")
