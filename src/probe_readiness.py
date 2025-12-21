@@ -24,7 +24,7 @@ def stable_doc_id(row: pd.Series) -> str:
 
 def list_pdfs(
     inventory_path: Path, only_top_folder: Optional[str] = None
-) -> tuple[pd.DataFrame, Dict[str, int]]:
+) -> tuple[pd.DataFrame, Dict[str, int], Dict[str, int]]:
     df = pd.read_csv(inventory_path)
     if only_top_folder:
         df = df[df.get("top_level_folder") == only_top_folder]
@@ -33,9 +33,13 @@ def list_pdfs(
     pdf_df = df[df["extension"] == "pdf"].copy()
     non_pdf_df = df[df["extension"] != "pdf"].copy()
     ignored_counts = non_pdf_df["extension"].value_counts(dropna=False).to_dict()
+    mime_col = "detected_mime" if "detected_mime" in non_pdf_df.columns else None
+    ignored_mime_counts: Dict[str, int] = {}
+    if mime_col:
+        ignored_mime_counts = non_pdf_df[mime_col].fillna("").value_counts(dropna=False).to_dict()
 
     pdf_df["doc_id"] = pdf_df.apply(stable_doc_id, axis=1)
-    return pdf_df.reset_index(drop=True), ignored_counts
+    return pdf_df.reset_index(drop=True), ignored_counts, ignored_mime_counts
 
 
 def classify_document(text_coverage_pct: float, config: ProbeConfig) -> str:

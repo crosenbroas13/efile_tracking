@@ -15,7 +15,9 @@ LOGGER = logging.getLogger(__name__)
 
 def run_probe(config: ProbeConfig) -> Tuple[pd.DataFrame, pd.DataFrame, Dict]:
     start_time = time.time()
-    pdfs, ignored_counts = list_pdfs(config.inventory_path, config.only_top_folder)
+    pdfs, ignored_counts, ignored_mime_counts = list_pdfs(
+        config.inventory_path, config.only_top_folder
+    )
 
     text_pages = pd.DataFrame()
     text_docs = pd.DataFrame()
@@ -70,6 +72,7 @@ def run_probe(config: ProbeConfig) -> Tuple[pd.DataFrame, pd.DataFrame, Dict]:
         "errors": all_errors,
         "errors_sample": all_errors[:20],
         "ignored_non_pdf_files": ignored_counts,
+        "ignored_non_pdf_mime_types": ignored_mime_counts,
         "ignored_non_pdf_total": int(sum(ignored_counts.values())),
     }
     return pages_df, docs_df, meta
