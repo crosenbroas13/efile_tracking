@@ -3,6 +3,8 @@ import time
 from pathlib import Path
 
 from .app import InventoryRunner
+from .probe_config import ProbeConfig
+from .probe_runner import run_probe_and_save
 
 
 def run_inventory(args: argparse.Namespace) -> None:
@@ -39,6 +41,29 @@ def run_inventory(args: argparse.Namespace) -> None:
         print(f"Encountered {len(result.errors)} issues; see run_log.jsonl for details.")
 
 
+def run_probe_cli(args: argparse.Namespace) -> None:
+    config = ProbeConfig(
+        inventory_path=Path(args.inventory),
+        output_root=Path(args.out),
+        text_char_threshold=args.text_threshold,
+        doc_text_pct_text=args.doc_text_pct_text,
+        doc_text_pct_scanned=args.doc_text_pct_scanned,
+        black_threshold_intensity=args.black_intensity,
+        mostly_black_ratio=args.mostly_black,
+        render_dpi=args.dpi,
+        center_crop_pct=args.center_crop_pct,
+        use_center_crop=args.use_center_crop,
+        max_pdfs=args.max_pdfs,
+        max_pages=args.max_pages,
+        skip_black_check=args.skip_black_check,
+        skip_text_check=args.skip_text_check,
+        seed=args.seed,
+        only_top_folder=args.only_top_folder,
+    )
+    run_dir = run_probe_and_save(config)
+    print(f"Probe run complete -> {run_dir}")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Dataset inventory and manifest CLI",
@@ -55,6 +80,26 @@ def build_parser() -> argparse.ArgumentParser:
     inv.add_argument("--follow-symlinks", action="store_true", help="Follow symlinks during scan")
     inv.add_argument("--max-files", type=int, default=None, help="Optional safety limit on number of files")
     inv.set_defaults(func=run_inventory)
+
+    probe = subparsers.add_parser("probe_readiness", help="Run extraction readiness probe")
+    probe.add_argument("--inventory", default="./outputs/inventory.csv", help="Path to inventory CSV")
+    probe.add_argument("--out", default="./outputs", help="Output folder root")
+    probe.add_argument("--dpi", type=int, default=72, help="Rendering DPI for black-page check")
+    probe.add_argument("--text-threshold", type=int, default=25, help="Characters required to mark a page as containing text")
+    probe.add_argument("--doc-text-pct-text", type=float, default=0.90, help="Pct of pages with text to call doc text-based")
+    probe.add_argument("--doc-text-pct-scanned", type=float, default=0.10, help="Pct of pages with text to call doc scanned")
+    probe.add_argument("--mostly-black", type=float, default=0.90, help="Black pixel ratio threshold")
+    probe.add_argument("--black-intensity", type=int, default=40, help="Grayscale value to count as black (0-255)")
+    probe.add_argument("--use-center-crop", action="store_true", default=True, help="Enable center crop for black detection")
+    probe.add_argument("--no-center-crop", action="store_false", dest="use_center_crop", help="Disable center crop evaluation")
+    probe.add_argument("--center-crop-pct", type=float, default=0.70, help="Portion of center used for crop")
+    probe.add_argument("--max-pdfs", type=int, default=0, help="Limit number of PDFs (0 means all)")
+    probe.add_argument("--max-pages", type=int, default=0, help="Limit pages per PDF (0 means all)")
+    probe.add_argument("--skip-black-check", action="store_true", help="Skip black-page evaluation")
+    probe.add_argument("--skip-text-check", action="store_true", help="Skip text readiness check")
+    probe.add_argument("--seed", type=int, default=None, help="Random seed for sampling")
+    probe.add_argument("--only-top-folder", default=None, help="Filter by top_level_folder value")
+    probe.set_defaults(func=run_probe_cli)
     return parser
 
 
