@@ -183,5 +183,7 @@ Or use the multipage launcher above to keep the Inventory QA view close by. The 
 
 All views rely solely on the stored probe artifacts (CSV/Parquet + JSON summaries); the dashboard never re-runs probes or reads document contents.
 
+If you load an older probe output where the per-page table is missing the `doc_id` column, the Probe QA page now shows a clear notice instead of stopping with an error. You will still see document-level summaries, but the page-level drilldown cannot filter pages for a specific file in that situation.
+
 ## Why this helps
 This inventory gives a transparent map of what was downloaded—counts, sizes, and file types—without touching document content. The append-only `run_log.jsonl` provides an audit trail for future validation, making it easier to trust the dataset before deeper processing like OCR or parsing.

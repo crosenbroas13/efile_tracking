@@ -332,7 +332,14 @@ def main():
         doc_info_cols[1].metric("Text coverage", format_pct(float(doc_row.get("text_coverage_pct", 0))))
         doc_info_cols[2].metric("Mostly-black", format_pct(float(doc_row.get("mostly_black_pct", 0))))
 
-        doc_pages = pages_df[pages_df["doc_id"] == selected_doc_id].copy()
+        if "doc_id" not in pages_df.columns:
+            st.warning(
+                "This probe run did not store per-page document IDs, so the page drilldown cannot filter pages for a single document."
+            )
+            doc_pages = pd.DataFrame()
+        else:
+            doc_pages = pages_df[pages_df["doc_id"] == selected_doc_id].copy()
+
         if doc_pages.empty:
             st.warning("No page-level data available for this document.")
         else:
