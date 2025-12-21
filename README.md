@@ -90,6 +90,8 @@ The script now adjusts its imports automatically so it runs correctly whether yo
 
 If you paste an absolute path into `DEFAULT_DATA_ROOT`, make sure it keeps the leading slash (for example, `/Users/<you>/Documents`). If you accidentally drop that slash, the runner now notices and corrects it when the intended folder exists, so you do not end up scanning the wrong location.
 
+The same guardrails now apply to the output directory: if you paste `Users/<you>/Downloads/Outputs` without the first `/`, the runner automatically fixes it and stores your CSV, summary, and log in the correct folder. Paths printed in the console are also shown as full absolute locations so you always know where the results landed.
+
 Behind the scenes, both the CLI and `main.py` rely on the shared `InventoryRunner` class. That runner bundles the path validation, scanning logic, and logging so you get identical results whether you are in a shell or inside the IDE.
 
 ## Project structure
