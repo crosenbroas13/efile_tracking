@@ -34,6 +34,7 @@ This toolkit inventories DOJ document drops and runs light-touch probes to estim
 - Outputs (versioned): `outputs/inventory/<run_id>/inventory.csv`, `inventory_summary.json`, `run_log.json`, plus `outputs/inventory/LATEST.json` pointing at the newest run.
 - Backward compatibility: a copy of `inventory.csv` and `inventory_summary.json` is still written to `outputs/` for older dashboards.
 - Deterministic IDs: `file_id` favors the SHA-256 file hash when requested; otherwise it uses the path/size/mtime triple.
+- **Large ZIP visibility**: the inventory now reads ZIP file listings without extracting them. Entries appear as `archive.zip::path/inside/file.pdf`, so you can see what is inside oversized archives without opening them manually.
 
 ## Probe workflow
 - Command: `python -m doj_doc_explorer.cli probe run --inventory <PATH|RUN_ID|LATEST> --out ./outputs [--dpi 72] [--text-threshold 25] [--mostly-black 0.90]`
@@ -87,7 +88,7 @@ Use this checklist to understand what lives where. It is written in plain langua
   - `src/main.py`: PyCharm-friendly runner that triggers inventories using editable constants for paths and settings.
   - `src/app.py`: Implements `InventoryRunner`, handling path validation, inventory execution, summaries, and logging.
   - `src/config.py`: Dataclass for inventory configuration plus helpers to normalize and apply ignore patterns.
-  - `src/inventory.py`: Walks the dataset, gathers file metadata and hashes, and returns structured `FileRecord` entries.
+  - `src/inventory.py`: Walks the dataset, gathers file metadata and hashes, and also lists files inside ZIP archives without extracting them.
   - `src/manifest.py`: Writes inventory CSVs, JSON summaries, and run logs to disk.
   - `src/cli.py`: Legacy wrapper that routes CLI calls to the maintained `doj_doc_explorer.cli` module while keeping old behavior.
   - `src/io_utils.py`: Shared loaders for inventory CSVs, summaries, and run logs with optional Streamlit caching.

@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import mimetypes
 import os
+import zipfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -114,6 +115,19 @@ def scan_inventory(config: InventoryConfig) -> Tuple[List[FileRecord], List[Dict
                 files_scanned += 1
                 if config.max_files and files_scanned >= config.max_files:
                     return records, errors
+                if abs_path.suffix.lower() == ".zip":
+                    files_scanned = _extend_with_zip_entries(
+                        records=records,
+                        errors=errors,
+                        zip_path=abs_path,
+                        rel_path=rel_path,
+                        top_level_folder=_top_level_folder(rel_path),
+                        ignore_patterns=ignore_patterns,
+                        files_scanned=files_scanned,
+                        max_files=config.max_files,
+                    )
+                    if config.max_files and files_scanned >= config.max_files:
+                        return records, errors
             except (OSError, PermissionError) as exc:
                 errors.append({"path": str(abs_path), "error": str(exc)})
             except ValueError as exc:
@@ -143,6 +157,73 @@ def _fnmatch(value: str, pattern: str) -> bool:
         return fnmatch.fnmatch(value, pattern)
     except Exception:
         return False
+
+
+def _extend_with_zip_entries(
+    *,
+    records: List[FileRecord],
+    errors: List[Dict[str, str]],
+    zip_path: Path,
+    rel_path: Path,
+    top_level_folder: str,
+    ignore_patterns: List[str],
+    files_scanned: int,
+    max_files: Optional[int],
+) -> int:
+    try:
+        with zipfile.ZipFile(zip_path) as archive:
+            for info in archive.infolist():
+                if info.is_dir():
+                    continue
+                entry_name = info.filename.lstrip("/")
+                rel_entry = f"{rel_path.as_posix()}::{entry_name}"
+                if _should_ignore_rel_path(rel_entry, ignore_patterns):
+                    continue
+                mtime = _zip_info_timestamp(info)
+                hash_value = ""
+                record = FileRecord(
+                    file_id=compute_file_id(rel_entry, info.file_size, mtime, None),
+                    rel_path=rel_entry,
+                    abs_path=f"{zip_path}::{entry_name}",
+                    top_level_folder=top_level_folder,
+                    extension=Path(entry_name).suffix.lower().lstrip("."),
+                    detected_mime=detect_mime(Path(entry_name)),
+                    size_bytes=info.file_size,
+                    created_time=None,
+                    modified_time=isoformat(mtime) if mtime else None,
+                    hash_value=hash_value,
+                    sample_hash=None,
+                )
+                records.append(record)
+                files_scanned += 1
+                if max_files and files_scanned >= max_files:
+                    return files_scanned
+    except (zipfile.BadZipFile, OSError, RuntimeError) as exc:
+        errors.append({"path": str(zip_path), "error": f"zip read error: {exc}"})
+    return files_scanned
+
+
+def _zip_info_timestamp(info: zipfile.ZipInfo) -> float:
+    try:
+        dt = datetime(*info.date_time, tzinfo=timezone.utc)
+        return dt.timestamp()
+    except Exception:
+        return 0.0
+
+
+def _should_ignore_rel_path(rel_path: str, patterns: List[str]) -> bool:
+    if not patterns:
+        return False
+    rel_obj = Path(rel_path)
+    rel_parts = rel_obj.as_posix()
+    for pattern in patterns:
+        if Path(pattern).match(rel_obj.name) or Path(pattern).match(rel_parts):
+            return True
+        if rel_obj.match(pattern):
+            return True
+        if _fnmatch(rel_parts, pattern):
+            return True
+    return False
 
 
 __all__ = [
