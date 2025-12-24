@@ -206,7 +206,7 @@ def main():
     black_range = _safe_min_max(black_coverage)
     if black_range:
         black_min, black_max = filter_cols[3].slider(
-            "Mostly-black coverage (%)",
+            "Redaction-like coverage (%)",
             min_value=0.0,
             max_value=1.0,
             value=(float(black_range[0]), float(black_range[1])),
@@ -214,7 +214,7 @@ def main():
         )
     else:
         black_min, black_max = None, None
-        filter_cols[3].info("No black-page ratios available.")
+        filter_cols[3].info("No redaction ratios available.")
 
     inv_cols = st.columns(3)
     size_series = _numeric_series(merged_df, "size_mb")

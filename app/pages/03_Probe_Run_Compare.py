@@ -150,8 +150,8 @@ def main():
         ("total_pages", "Pages processed", False),
         ("pages_with_text", "Pages with text", False),
         ("pages_without_text", "Pages without text", False),
-        ("mostly_black_pages", "Mostly-black pages", False),
-        ("mostly_black_pct", "Mostly-black share", True),
+        ("mostly_black_pages", "Redaction-like pages", False),
+        ("mostly_black_pct", "Redaction-like share", True),
         ("estimated_ocr_pages_baseline", "Baseline OCR pages", False),
         ("estimated_ocr_pages_adjusted", "Adjusted OCR pages", False),
     ]:
@@ -274,10 +274,10 @@ def main():
     top_change = st.slider("Highlight top N changes", min_value=10, max_value=200, value=50, step=10)
     change_focus = st.selectbox(
         "Focus on",
-        ["Largest text coverage shifts", "Largest mostly-black shifts", "Largest page count shifts"],
+        ["Largest text coverage shifts", "Largest redaction-like shifts", "Largest page count shifts"],
     )
 
-    if change_focus == "Largest mostly-black shifts":
+    if change_focus == "Largest redaction-like shifts":
         sort_key = "delta_mostly_black"
     elif change_focus == "Largest page count shifts":
         sort_key = "delta_page_count"
