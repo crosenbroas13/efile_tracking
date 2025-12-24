@@ -92,7 +92,7 @@ Use this checklist to understand what lives where. It is written in plain langua
   - `app/qa_fileimport.py`: Main Streamlit view for browsing inventories, highlighting potential issues, and exporting a PDF summary.
   - `app/pages/01_Inventory_QA.py`: Thin wrapper that hosts the inventory QA view inside the multipage app.
   - `app/pages/02_Probe_QA.py`: Probe results viewer with charts and download buttons for the readiness metrics.
-  - `app/pages/03_Probe_Run_Compare.py`: Side-by-side comparison page for two probe runs, highlighting shifts in totals and document-level readiness.
+  - `app/pages/03_Probe_Run_Compare.py`: Side-by-side comparison page for two probe runs, highlighting shifts in totals, document-level readiness, and **non-PDF inventory file types** (so reviewers can see if new spreadsheets, images, or text files were added between runs).
   - `app/pages/04_Document_Filter.py`: Filterable document table that merges probe outputs with inventory metadata so reviewers can quickly spot long, low-text, or unusual files without opening the PDFs.
   - `app/pages/04_Probe_Document_Viewer.py`: Single-document preview page with relative path search and alternate image previews for PDF files.
   - `app/pages/05_Text_Based_Documents.py`: Focused view for **100% text-based** PDFs, showing the latest text-ready share as a pie chart and pairing each PDF preview with its extracted text so reviewers can quickly confirm what is ready for immediate analysis. The preview toggle includes a **Chrome-safe rendered image** option, which is helpful when embedded PDFs are blocked in a browser or when sharing with non-technical reviewers who need a quick visual check without downloading files.

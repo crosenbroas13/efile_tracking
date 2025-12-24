@@ -1,3 +1,4 @@
+import json
 import sys
 from pathlib import Path
 from typing import Dict, List
@@ -93,6 +94,23 @@ def _prep_docs(df: pd.DataFrame) -> pd.DataFrame:
     base["text_coverage_pct"] = pd.to_numeric(safe_series(base, "text_coverage_pct", 0), errors="coerce").fillna(0)
     base["classification"] = safe_series(base, "classification", "Unknown")
     return base
+
+
+def _load_inventory_summary(inventory_path: str | None) -> Dict:
+    if not inventory_path:
+        return {}
+    summary_path = Path(inventory_path).with_name("inventory_summary.json")
+    if not summary_path.exists():
+        return {}
+    try:
+        return json.loads(summary_path.read_text())
+    except json.JSONDecodeError:
+        return {}
+
+
+def _normalize_extension(ext: str) -> str:
+    cleaned = (ext or "").strip().lower()
+    return cleaned if cleaned else "(no extension)"
 
 
 # Page rendering
@@ -211,6 +229,57 @@ def main():
             class_df.to_csv(index=False).encode("utf-8"),
             file_name="probe_run_comparison_classifications.csv",
         )
+
+    st.divider()
+    st.subheader("Inventory file-type shifts (non-PDF)")
+    st.markdown(
+        """
+        This section compares the *other* file types found during the inventories that fed each probe run.
+        It helps non-technical reviewers see if new spreadsheets, images, or text files appeared between
+        runs without opening every folder.
+        """
+    )
+    inv_summary_a = _load_inventory_summary(run_log_a.get("inventory_path"))
+    inv_summary_b = _load_inventory_summary(run_log_b.get("inventory_path"))
+    raw_ext_counts_a = inv_summary_a.get("counts_by_extension", {}) if inv_summary_a else {}
+    raw_ext_counts_b = inv_summary_b.get("counts_by_extension", {}) if inv_summary_b else {}
+    ext_counts_a = {_normalize_extension(key): int(value) for key, value in raw_ext_counts_a.items()}
+    ext_counts_b = {_normalize_extension(key): int(value) for key, value in raw_ext_counts_b.items()}
+
+    extension_rows = []
+    all_exts = {
+        _normalize_extension(ext) for ext in list(ext_counts_a.keys()) + list(ext_counts_b.keys())
+    }
+    all_exts.discard("pdf")
+    if all_exts:
+        for ext in sorted(all_exts):
+            base = int(ext_counts_a.get(ext, 0))
+            comp = int(ext_counts_b.get(ext, 0))
+            if base == 0 and comp > 0:
+                status = "Added in comparison"
+            elif base > 0 and comp == 0:
+                status = "Removed in comparison"
+            else:
+                status = "In both"
+            extension_rows.append(
+                {
+                    "File type": ext,
+                    "Baseline": f"{base:,}",
+                    "Comparison": f"{comp:,}",
+                    "Delta": _format_delta(comp - base),
+                    "Status": status,
+                }
+            )
+
+        extension_df = pd.DataFrame(extension_rows)
+        st.dataframe(extension_df, use_container_width=True)
+        st.download_button(
+            "Download inventory file-type shifts as CSV",
+            extension_df.to_csv(index=False).encode("utf-8"),
+            file_name="probe_run_inventory_file_types.csv",
+        )
+    else:
+        st.info("No inventory file-type counts found for these runs.")
 
     st.divider()
     st.subheader("Document-level changes")
