@@ -14,6 +14,7 @@ APP_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(APP_ROOT) not in sys.path:
     sys.path.insert(0, str(APP_ROOT))
 
+from src.doj_doc_explorer.utils.fitz_loader import load_fitz_optional  # noqa: E402
 from src.io_utils import get_default_out_dir  # noqa: E402
 from src.probe_io import list_probe_runs, load_probe_run  # noqa: E402
 from src.text_scan_io import load_latest_text_scan  # noqa: E402
@@ -123,10 +124,13 @@ def _render_pdf(path: Path) -> None:
 
 
 def _render_pdf_image_preview(path: Path) -> bool:
-    if not importlib.util.find_spec("fitz"):
+    fitz = load_fitz_optional()
+    if not fitz:
         return False
-    fitz = importlib.import_module("fitz")
-    doc = fitz.open(path)
+    try:
+        doc = fitz.open(path)
+    except Exception:
+        return False
     try:
         if doc.page_count < 1:
             return False

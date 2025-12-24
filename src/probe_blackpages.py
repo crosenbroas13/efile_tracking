@@ -1,22 +1,19 @@
 from __future__ import annotations
 
-import importlib.util
 import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List
 
+import importlib.util
+
 import numpy as np
 import pandas as pd
 from PIL import Image
 
-_fitz_spec = importlib.util.find_spec("fitz")
-if _fitz_spec:  # pragma: no cover - optional import
-    import importlib
+from src.doj_doc_explorer.utils.fitz_loader import load_fitz_optional
 
-    fitz = importlib.import_module("fitz")  # type: ignore
-else:  # pragma: no cover - optional import
-    fitz = None
+fitz = load_fitz_optional()
 
 _pdf2image_spec = importlib.util.find_spec("pdf2image")
 if _pdf2image_spec:  # pragma: no cover - optional import
