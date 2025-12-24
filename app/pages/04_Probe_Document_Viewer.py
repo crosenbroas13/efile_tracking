@@ -104,6 +104,10 @@ def main() -> None:
         share quick findings with non-technical reviewers without running new probes.
         """
     )
+    st.info(
+        "Need an older run? Use the Probe QA page to review historical probes. "
+        "This viewer stays locked to the latest run to keep the choice simple for reviewers."
+    )
 
     pick_cols = st.columns([2, 3])
     out_dir_text = pick_cols[0].text_input("Output folder", value=str(DEFAULT_OUT_DIR))
@@ -112,12 +116,11 @@ def main() -> None:
         st.warning("No probe runs detected under this output folder yet.")
         st.stop()
 
-    options = {_format_run_option(run): run for run in runs}
-    labels = list(options.keys())
-    selected_label = pick_cols[1].selectbox("Probe run (latest first)", labels, index=0)
-    selected_run = options[selected_label]
+    latest_run = runs[0]
+    pick_cols[1].markdown("**Latest probe run**")
+    pick_cols[1].markdown(_format_run_option(latest_run))
 
-    docs_df, _pages_df, _summary, run_log = cached_load_probe_run(out_dir_text, selected_run["probe_run_id"])
+    docs_df, _pages_df, _summary, run_log = cached_load_probe_run(out_dir_text, latest_run["probe_run_id"])
     if docs_df.empty:
         st.warning("No document records found in this probe run.")
         st.stop()
