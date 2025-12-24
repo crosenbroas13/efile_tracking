@@ -14,6 +14,9 @@ class ProbeConfig:
     adaptive_percentile: float = 10.0
     mostly_black_ratio_adapt: float = 0.90
     dark_page_median_cutoff: float = 90.0
+    redaction_dark_ratio_min: float = 0.02
+    redaction_contrast_min: float = 30.0
+    redaction_low_contrast_max: float = 12.0
     render_dpi: int = 72
     center_crop_pct: float = 0.70
     use_center_crop: bool = True

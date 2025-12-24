@@ -157,8 +157,8 @@ def main():
 
     with pick_cols[2]:
         st.markdown("**Display options**")
-        show_mostly_black = st.checkbox("Mostly-black pages", value=False)
-        exclude_black_from_ocr = st.checkbox("Skip black in OCR", value=True)
+        show_mostly_black = st.checkbox("Redaction-like pages", value=False)
+        exclude_black_from_ocr = st.checkbox("Skip redaction-like in OCR", value=True)
         show_only_issues = st.checkbox("Only issues", value=False)
 
     slider_cols = st.columns(2)
@@ -166,7 +166,7 @@ def main():
         "Text character threshold (display only)", min_value=0, max_value=500, value=text_threshold_default, step=5
     )
     mostly_black_ratio_display = slider_cols[1].slider(
-        "Mostly-black ratio (display only)", min_value=0.0, max_value=1.0, value=black_ratio_default, step=0.05
+        "Redaction dark ratio (display only)", min_value=0.0, max_value=1.0, value=black_ratio_default, step=0.05
     )
 
     docs_df, pages_df, summary, run_log = cached_load_probe_run(out_dir_text, selected_run["probe_run_id"])
@@ -181,7 +181,7 @@ def main():
     metrics[0].metric("PDFs processed", f"{totals['total_pdfs']:,}")
     metrics[1].metric("Pages processed", f"{totals['total_pages']:,}")
     metrics[2].metric(
-        "Mostly-black pages",
+        "Redaction-like pages",
         f"{totals.get('mostly_black_pages', 0):,}",
         format_pct(float(totals.get("mostly_black_pct", 0))),
     )
@@ -202,7 +202,7 @@ def main():
     metrics2[1].metric("Doc classifications", cls_text)
     black_pages_checked = totals.get("black_pages_checked", 0)
     metrics2[2].metric(
-        "Black pages checked",
+        "Pages checked for redaction",
         f"{black_pages_checked:,}",
         format_pct(safe_pct(black_pages_checked, totals.get("total_pages", 0))),
     )
@@ -210,7 +210,7 @@ def main():
     metrics2[3].metric("Ignored non-PDF artifacts", f"{ignored_total:,}")
     if totals.get("total_pages") and totals.get("black_pages_checked", 0) == 0:
         st.warning(
-            "Mostly-black page metrics were not calculated for this run. "
+            "Redaction scan metrics were not calculated for this run. "
             "This usually happens when the PDF rendering dependency is missing, "
             "so the probe could not analyze page pixels."
         )
@@ -236,10 +236,10 @@ def main():
         chart_cols[0].info("No text coverage data available.")
 
     if "mostly_black_pct" in docs_df.columns and not docs_df.empty:
-        fig_black = px.histogram(docs_df, x="mostly_black_pct", nbins=20, title="Document mostly-black ratio")
+        fig_black = px.histogram(docs_df, x="mostly_black_pct", nbins=20, title="Document redaction dark ratio")
         chart_cols[1].plotly_chart(fig_black, use_container_width=True)
     else:
-        chart_cols[1].info("No mostly-black ratios available.")
+        chart_cols[1].info("No redaction ratios available.")
 
     chart_cols2 = st.columns(2)
     if "classification" in docs_df.columns:
@@ -322,9 +322,9 @@ def main():
         most_redacted = docs_ready.sort_values("mostly_black_pct", ascending=False).head(top_n)
     else:
         most_redacted = pd.DataFrame()
-    st.markdown("#### Most redacted / black-heavy")
+    st.markdown("#### Most redacted / dark-heavy")
     if most_redacted.empty:
-        st.info("No mostly-black ratios available for this run.")
+        st.info("No redaction ratios available for this run.")
     else:
         st.dataframe(most_redacted[[
             "doc_id",
@@ -352,7 +352,7 @@ def main():
         doc_info_cols = st.columns(3)
         doc_info_cols[0].metric("Pages", int(doc_row.get("page_count", 0)))
         doc_info_cols[1].metric("Text coverage", format_pct(float(doc_row.get("text_coverage_pct", 0))))
-        doc_info_cols[2].metric("Mostly-black", _format_pct_or_na(doc_row.get("mostly_black_pct")))
+        doc_info_cols[2].metric("Redaction-like", _format_pct_or_na(doc_row.get("mostly_black_pct")))
 
         if "doc_id" not in pages_df.columns:
             st.warning(
@@ -373,7 +373,7 @@ def main():
 
             col_filters = st.columns(3)
             only_no_text = col_filters[0].checkbox("Only pages without text", value=False)
-            only_black = col_filters[1].checkbox("Only mostly-black", value=show_mostly_black)
+            only_black = col_filters[1].checkbox("Only redaction-like", value=show_mostly_black)
             needs_ocr = col_filters[2].checkbox("Only pages needing OCR", value=False)
 
             filtered_pages = doc_pages.copy()

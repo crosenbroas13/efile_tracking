@@ -38,20 +38,26 @@ def test_darkness_metrics_scenarios():
     assert metrics_black["is_mostly_black"] is True
     assert metrics_black["black_ratio_fixed"] == 1.0
 
-    # 2) mostly white with small black region
+    # 2) mostly white with tiny black region (below redaction ratio threshold)
     white = np.full((10, 10), 255, dtype=np.uint8)
-    white[0:2, 0:2] = 0
+    white[0, 0] = 0
     metrics_white = compute_darkness_metrics(white, config)
     assert metrics_white["is_mostly_black"] is False
 
-    # 3) dark gray page flagged by adaptive rule
+    # 3) page with redaction-like blocks (enough dark pixels + contrast)
+    redaction_like = np.full((10, 10), 255, dtype=np.uint8)
+    redaction_like[0:3, 0:3] = 0
+    metrics_redaction = compute_darkness_metrics(redaction_like, config)
+    assert metrics_redaction["is_mostly_black"] is True
+
+    # 4) dark gray page flagged by low-contrast rule
     gray_dark = np.full((10, 10), 80, dtype=np.uint8)
     metrics_dark = compute_darkness_metrics(gray_dark, config)
     assert metrics_dark["is_mostly_black"] is True
     assert metrics_dark["black_ratio_fixed"] == 0.0
     assert metrics_dark["black_ratio_adapt"] == 1.0
 
-    # 4) gradient page should not trigger
+    # 5) gradient page should not trigger
     gradient = np.linspace(50, 200, num=100, dtype=np.uint8).reshape((10, 10))
     metrics_grad = compute_darkness_metrics(gradient, config)
     assert metrics_grad["is_mostly_black"] is False

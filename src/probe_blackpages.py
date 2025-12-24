@@ -160,8 +160,12 @@ def compute_darkness_metrics(gray_array: np.ndarray, config: ProbeConfig) -> Dic
     is_mostly_black = bool(
         (ratio_fixed >= config.mostly_black_ratio_fixed)
         or (
+            ratio_fixed >= config.redaction_dark_ratio_min
+            and gray_std >= config.redaction_contrast_min
+        )
+        or (
             gray_median <= config.dark_page_median_cutoff
-            and ratio_adapt >= config.mostly_black_ratio_adapt
+            and gray_std <= config.redaction_low_contrast_max
         )
     )
 
