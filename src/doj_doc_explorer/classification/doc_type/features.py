@@ -12,10 +12,7 @@ import numpy as np
 import pandas as pd
 
 from ...utils.paths import normalize_rel_path
-
-DEFAULT_PAGES_SAMPLED = 5
-DEFAULT_DPI = 96
-DEFAULT_SEED = 42
+from .constants import DEFAULT_DPI, DEFAULT_PAGES_SAMPLED, DEFAULT_SEED
 
 
 @dataclass(frozen=True)

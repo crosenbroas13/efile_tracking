@@ -16,13 +16,7 @@ from .text_scan.config import TextQualityConfig, TextScanRunConfig
 from .text_scan.runner import run_text_scan_and_save
 from .utils.io import ensure_dir, latest_inventory, latest_probe, load_table, read_json, self_check, write_json
 from .utils.paths import normalize_rel_path
-from .classification.doc_type.features import DEFAULT_DPI, DEFAULT_PAGES_SAMPLED, DEFAULT_SEED
-from .classification.doc_type.model import (
-    load_doc_type_model,
-    predict_doc_types,
-    resolve_doc_type_model_path,
-    train_doc_type_model,
-)
+from .classification.doc_type.constants import DEFAULT_DPI, DEFAULT_PAGES_SAMPLED, DEFAULT_SEED
 from .pdf_type.labels import (
     LABEL_VALUES,
     filter_pdf_inventory,
@@ -270,6 +264,8 @@ def resolve_inventory_path(value: str, outputs_root: Path) -> Path:
 def run_probe_cmd(args: argparse.Namespace) -> None:
     outputs_root = Path(args.out)
     inventory_path = resolve_inventory_path(args.inventory, outputs_root)
+    from .classification.doc_type.registry import resolve_doc_type_model_path
+
     model_path = resolve_doc_type_model_path(args.model, outputs_root)
     use_doc_type_model = args.use_doc_type_model
     if use_doc_type_model is None:
@@ -531,6 +527,8 @@ def run_doc_type_train_cmd(args: argparse.Namespace) -> None:
     outputs_root = Path(args.out)
     inventory_path = resolve_inventory_path(args.inventory, outputs_root)
     labels_csv = Path(args.labels)
+    from .classification.doc_type.model import train_doc_type_model
+
     artifacts, eval_payload = train_doc_type_model(
         inventory_path=inventory_path,
         probe_ref=args.probe,
@@ -565,6 +563,8 @@ def run_doc_type_predict_cmd(args: argparse.Namespace) -> None:
     inventory_path = resolve_inventory_path(args.inventory, outputs_root)
     pdfs_df, _, _ = list_pdfs(inventory_path, extract_root=outputs_root)
     pdfs_df["rel_path"] = pdfs_df["rel_path"].astype(str).map(normalize_rel_path)
+
+    from .classification.doc_type.model import load_doc_type_model, predict_doc_types
 
     model_artifacts = load_doc_type_model(args.model, outputs_root)
     if not model_artifacts:
@@ -609,6 +609,8 @@ def run_doc_type_queue_cmd(args: argparse.Namespace) -> None:
     inventory_path = resolve_inventory_path(args.inventory, outputs_root)
     pdfs_df, _, _ = list_pdfs(inventory_path, extract_root=outputs_root)
     pdfs_df["rel_path"] = pdfs_df["rel_path"].astype(str).map(normalize_rel_path)
+
+    from .classification.doc_type.model import load_doc_type_model, predict_doc_types
 
     model_artifacts = load_doc_type_model(args.model, outputs_root)
     if not model_artifacts:
