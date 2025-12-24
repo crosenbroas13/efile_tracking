@@ -105,6 +105,10 @@ def _infer_inventory_label(inventory_path: Path) -> str | None:
     return None
 
 
+def build_probe_run_id(inventory_path: Path) -> str:
+    return new_run_id("probe", label=_infer_inventory_label(inventory_path))
+
+
 def _infer_source_root(inventory_path: Path) -> tuple[Path, str]:
     run_log = read_json(inventory_path.with_name("run_log.json"))
     root_value = run_log.get("root")
@@ -120,10 +124,15 @@ def _infer_source_root(inventory_path: Path) -> tuple[Path, str]:
 
 
 def write_probe_outputs(
-    pages_df: pd.DataFrame, docs_df: pd.DataFrame, config: ProbeRunConfig, meta: Dict
+    pages_df: pd.DataFrame,
+    docs_df: pd.DataFrame,
+    config: ProbeRunConfig,
+    meta: Dict,
+    *,
+    probe_run_id: str | None = None,
 ) -> Path:
     probe_root = ensure_dir(Path(config.paths.outputs_root) / "probes")
-    probe_run_id = new_run_id("probe", label=_infer_inventory_label(config.paths.inventory))
+    probe_run_id = probe_run_id or build_probe_run_id(config.paths.inventory)
     run_dir = probe_root / probe_run_id
     ensure_dir(run_dir)
 
@@ -252,4 +261,4 @@ def _collect_mismatches(
     return records
 
 
-__all__ = ["write_probe_outputs"]
+__all__ = ["build_probe_run_id", "write_probe_outputs"]

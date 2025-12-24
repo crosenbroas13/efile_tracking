@@ -38,7 +38,7 @@ This toolkit inventories DOJ document drops and runs light-touch probes to estim
 - **Large ZIP visibility**: the inventory now reads ZIP file listings without extracting them. Entries appear as `archive.zip::path/inside/file.pdf`, so you can see what is inside oversized archives without opening them manually.
 
 ## Probe workflow
-- Command: `python -m doj_doc_explorer.cli probe run --inventory <PATH|RUN_ID|LATEST> --out ./outputs [--text-threshold 25] [--doc-text-pct-text 0.50] [--doc-text-min-chars-per-page 200]`
+- Command: `python -m doj_doc_explorer.cli probe run --inventory <PATH|RUN_ID|LATEST> --out ./outputs [--text-threshold 25] [--doc-text-pct-text 0.50] [--doc-text-min-chars-per-page 200] [--run-text-scan/--no-run-text-scan]`
 - Outputs (versioned): `outputs/probes/<run_id>/readiness_pages.parquet|csv`, `readiness_docs.parquet|csv`, `probe_summary.json`, `probe_run_log.json`, plus `outputs/probes/LATEST.json` pointing at the latest run and recording the inventory used.
 - **Matching probe run IDs**: probe run folders now start with the same **main folder name** captured from the inventory summary, then the run type and timestamp. This keeps inventory and probe outputs aligned for the same dataset.
 - Legacy compatibility: probes can still read a flat `outputs/inventory.csv` or a specific run folder.
@@ -47,6 +47,7 @@ This toolkit inventories DOJ document drops and runs light-touch probes to estim
   - **50% of pages must have extractable text**, **and**  
   - the file must average at least **200 extractable characters per page**.  
   This two-step rule prevents tiny corner labels on photo-heavy PDFs from being mistaken as real text. In plain terms, it helps reviewers avoid calling a mostly-image document “text-based” just because a small ID tag was detected.
+- **Text Scan runs inside the probe by default**: after the probe identifies likely text-based PDFs, it immediately performs a **Text Scan** to measure text quality and content type. This helps reviewers separate **verified, searchable text** from PDFs that only *pretend* to have usable text. Use `--no-run-text-scan` if you want to skip the text scan step during probing.
 - **Redaction checks are paused**: the current probe run focuses on text readiness only. This avoids dependencies on PDF rendering and keeps the metrics limited to signals we can measure directly (text presence, document classification, and page counts).
 - **Doc-type final decision (human-first)**: the probe now writes `doc_type_final` for each PDF using a simple priority:  
   **TRUTH** (your label) → **MODEL** (if confidence ≥ 0.70) → **HEURISTIC** (the legacy rule).  
@@ -67,6 +68,10 @@ The **Text Scan** step checks PDFs that *appear* text-based and measures whether
 ```bash
 python -m doj_doc_explorer.cli text_scan run --inventory LATEST --probe LATEST --out ./outputs
 ```
+
+### When to use the standalone command
+- **Rerun with different thresholds**: if you want stricter or looser text-quality settings than the probe defaults.
+- **Rescan after updates**: if you relabel or repair PDFs and want fresh text-quality signals without rerunning the entire probe.
 
 ### Outputs
 - `outputs/text_scan/<run_id>/doc_text_signals.parquet|csv`

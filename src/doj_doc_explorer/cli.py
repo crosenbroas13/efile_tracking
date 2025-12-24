@@ -81,6 +81,28 @@ def build_parser() -> argparse.ArgumentParser:
     probe_run.add_argument("--seed", type=int, default=None, help="Random seed")
     probe_run.add_argument("--only-top-folder", default=None, help="Filter by top-level folder")
     probe_run.add_argument(
+        "--run-text-scan",
+        dest="run_text_scan",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Run text scan during the probe to enrich text-ready PDFs",
+    )
+    probe_run.add_argument("--text-scan-max-docs", type=int, default=0, help="Limit text scan PDFs (0 = all)")
+    probe_run.add_argument("--text-scan-max-pages", type=int, default=0, help="Limit pages per PDF for text scan (0 = all)")
+    probe_run.add_argument(
+        "--text-scan-min-text-pages",
+        type=int,
+        default=1,
+        help="Minimum text pages in probe before scanning",
+    )
+    probe_run.add_argument(
+        "--text-scan-store-snippet",
+        dest="text_scan_store_snippet",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Store a short sanitized text snippet from text scan results",
+    )
+    probe_run.add_argument(
         "--use-doc-type-model",
         dest="use_doc_type_model",
         action=argparse.BooleanOptionalAction,
@@ -268,6 +290,12 @@ def run_probe_cmd(args: argparse.Namespace) -> None:
         use_doc_type_model=use_doc_type_model,
         doc_type_model_ref=args.model if model_path else "",
         min_model_confidence=args.min_model_confidence,
+        run_text_scan=args.run_text_scan,
+        text_scan_max_docs=args.text_scan_max_docs,
+        text_scan_max_pages=args.text_scan_max_pages,
+        text_scan_min_text_pages=args.text_scan_min_text_pages,
+        text_scan_store_snippet=args.text_scan_store_snippet,
+        text_scan_quality=TextQualityConfig(),
     )
     run_dir = run_probe_and_save(config)
     print("Probe run complete")

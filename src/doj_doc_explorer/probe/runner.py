@@ -8,14 +8,16 @@ import pandas as pd
 
 from src.probe_readiness import evaluate_readiness, list_pdfs
 
-from ..config import ProbeRunConfig, ProbePaths
+from ..config import ProbeRunConfig
 from ..classification.doc_type.model import apply_doc_type_decision, load_doc_type_model, predict_doc_types
 from ..classification.doc_type.features import DEFAULT_DPI, DEFAULT_PAGES_SAMPLED, DEFAULT_SEED
 from ..pdf_type.labels import labels_path, load_labels, match_labels_to_inventory
 from ..utils.paths import normalize_rel_path
 from ..utils.io import ensure_dir
-from ..text_scan.io import load_latest_text_scan, merge_text_scan_signals
-from .outputs import write_probe_outputs
+from ..text_scan.config import TextScanRunConfig
+from ..text_scan.io import merge_text_scan_signals
+from ..text_scan.runner import run_text_scan_and_save_for_probe
+from .outputs import build_probe_run_id, write_probe_outputs
 
 
 def run_probe(config: ProbeRunConfig) -> Tuple[pd.DataFrame, pd.DataFrame, Dict]:
@@ -54,9 +56,6 @@ def run_probe(config: ProbeRunConfig) -> Tuple[pd.DataFrame, pd.DataFrame, Dict]
     all_errors = text_errors
     runtime = time.time() - start_time
     docs_df, label_reconciliation = _augment_doc_type_metadata(docs_df, pdfs, config)
-    text_scan_merge = _merge_text_scan(docs_df, config.paths)
-    if text_scan_merge.get("merged"):
-        docs_df = text_scan_merge["docs_df"]
     meta = {
         "probe_run_seconds": runtime,
         "error_count": len(all_errors),
@@ -66,15 +65,29 @@ def run_probe(config: ProbeRunConfig) -> Tuple[pd.DataFrame, pd.DataFrame, Dict]
         "ignored_non_pdf_mime_types": ignored_mime_counts,
         "ignored_non_pdf_total": int(sum(ignored_counts.values())),
         "label_reconciliation": label_reconciliation,
-        "text_scan_merge": {k: v for k, v in text_scan_merge.items() if k != "docs_df"},
     }
     return pages_df, docs_df, meta
 
 
 def run_probe_and_save(config: ProbeRunConfig) -> Path:
     ensure_dir(config.paths.outputs_root)
+    probe_run_id = build_probe_run_id(config.paths.inventory)
     pages_df, docs_df, meta = run_probe(config)
-    return write_probe_outputs(pages_df, docs_df, config, meta)
+    if config.run_text_scan:
+        text_scan_run, text_scan_merge = _run_text_scan_for_probe(
+            docs_df,
+            pages_df,
+            config,
+            probe_run_id=probe_run_id,
+        )
+        meta["text_scan_merge"] = {k: v for k, v in text_scan_merge.items() if k != "docs_df"}
+        meta["text_scan_run"] = text_scan_run
+        if text_scan_merge.get("merged"):
+            docs_df = text_scan_merge["docs_df"]
+    else:
+        meta["text_scan_merge"] = {"merged": False, "reason": "disabled"}
+        meta["text_scan_run"] = {"status": "skipped", "reason": "disabled"}
+    return write_probe_outputs(pages_df, docs_df, config, meta, probe_run_id=probe_run_id)
 
 
 def _augment_doc_type_metadata(
@@ -141,28 +154,45 @@ def _augment_doc_type_metadata(
     return docs_df, label_reconciliation
 
 
-def _merge_text_scan(docs_df: pd.DataFrame, paths: ProbePaths) -> Dict[str, object]:
-    text_scan_df, _summary, run_log = load_latest_text_scan(str(paths.outputs_root))
-    if text_scan_df.empty:
-        return {"merged": False, "reason": "no_text_scan"}
-    if run_log.get("inventory_path"):
-        try:
-            scan_inventory = Path(str(run_log.get("inventory_path"))).resolve()
-            probe_inventory = paths.inventory.resolve()
-        except Exception:
-            scan_inventory = Path(str(run_log.get("inventory_path")))
-            probe_inventory = paths.inventory
-        if scan_inventory != probe_inventory:
-            return {
-                "merged": False,
-                "reason": "inventory_mismatch",
-                "inventory_path": str(paths.inventory),
-                "text_scan_inventory_path": run_log.get("inventory_path"),
-            }
+def _run_text_scan_for_probe(
+    docs_df: pd.DataFrame,
+    pages_df: pd.DataFrame,
+    config: ProbeRunConfig,
+    *,
+    probe_run_id: str | None = None,
+) -> tuple[Dict[str, object], Dict[str, object]]:
+    if config.skip_text_check:
+        return {"status": "skipped", "reason": "skip_text_check"}, {"merged": False, "reason": "skip_text_check"}
+    probe_run_id = probe_run_id or build_probe_run_id(config.paths.inventory)
+    probe_run_dir = Path(config.paths.outputs_root) / "probes" / probe_run_id
+    text_scan_config = TextScanRunConfig(
+        inventory_path=config.paths.inventory,
+        probe_run_dir=probe_run_dir,
+        outputs_root=config.paths.outputs_root,
+        max_docs=config.text_scan_max_docs,
+        max_pages=config.text_scan_max_pages,
+        min_text_pages=config.text_scan_min_text_pages,
+        seed=config.seed if config.seed is not None else 42,
+        store_snippet=config.text_scan_store_snippet,
+        quality=config.text_scan_quality,
+    )
+    try:
+        run_dir, text_scan_df, _meta = run_text_scan_and_save_for_probe(
+            text_scan_config,
+            probe_docs=docs_df,
+            probe_pages=pages_df,
+        )
+    except SystemExit as exc:
+        return {"status": "skipped", "reason": str(exc)}, {"merged": False, "reason": "text_scan_failed"}
     merged_df, merge_info = merge_text_scan_signals(docs_df, text_scan_df)
     if merge_info.get("merged"):
         merge_info["docs_df"] = merged_df
-    return merge_info
+    return {
+        "status": "completed",
+        "run_dir": str(run_dir),
+        "text_scan_run_id": run_dir.name,
+        "probe_run_id": probe_run_id,
+    }, merge_info
 
 
 __all__ = ["run_probe", "run_probe_and_save"]

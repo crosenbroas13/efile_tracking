@@ -92,7 +92,7 @@ def merge_text_scan_signals(docs_df: pd.DataFrame, signals_df: pd.DataFrame) -> 
     docs_paths = set(docs_df["rel_path_norm"])
     signal_paths = set(signals_df["rel_path_norm"])
     coverage = len(docs_paths & signal_paths) / len(docs_paths) if docs_paths else 0.0
-    if docs_paths != signal_paths:
+    if coverage == 0.0:
         return docs_df.drop(columns=["rel_path_norm"]), {
             "merged": False,
             "reason": "rel_path_mismatch",

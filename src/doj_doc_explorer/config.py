@@ -6,6 +6,8 @@ from pathlib import Path
 import re
 from typing import List, Optional
 
+from .text_scan.config import TextQualityConfig
+
 DEFAULT_OUTPUT_ROOT = Path("outputs")
 DEFAULT_DATA_ROOT = Path("data")
 DEFAULT_IGNORE = ["*.DS_Store", "Thumbs.db", "~$*"]
@@ -61,6 +63,12 @@ class ProbeRunConfig:
     use_doc_type_model: bool = False
     doc_type_model_ref: str = ""
     min_model_confidence: float = 0.70
+    run_text_scan: bool = True
+    text_scan_max_docs: int = 0
+    text_scan_max_pages: int = 0
+    text_scan_min_text_pages: int = 1
+    text_scan_store_snippet: bool = False
+    text_scan_quality: TextQualityConfig = field(default_factory=TextQualityConfig)
 
     @property
     def run_args(self) -> dict:
@@ -69,6 +77,7 @@ class ProbeRunConfig:
             "inventory": str(self.paths.inventory),
             "outputs_root": str(self.paths.outputs_root),
         }
+        data["text_scan_quality"] = self.text_scan_quality.as_dict()
         return data
 
 
