@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
 from pathlib import Path
-import re
 from typing import List, Optional
 
 from .text_scan.config import TextQualityConfig
+from .utils.run_ids import new_run_id, sanitize_run_label
 
 DEFAULT_OUTPUT_ROOT = Path("outputs")
 DEFAULT_DATA_ROOT = Path("data")
@@ -79,21 +78,6 @@ class ProbeRunConfig:
         }
         data["text_scan_quality"] = self.text_scan_quality.as_dict()
         return data
-
-
-def sanitize_run_label(value: str | None) -> str | None:
-    if not value:
-        return None
-    sanitized = re.sub(r"[^A-Za-z0-9._-]+", "-", value).strip("-")
-    return sanitized or "root"
-
-
-def new_run_id(prefix: str, label: str | None = None) -> str:
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-    sanitized_label = sanitize_run_label(label)
-    if sanitized_label:
-        return f"{sanitized_label}_{prefix}_{timestamp}"
-    return f"{prefix}_{timestamp}"
 
 
 __all__ = [
