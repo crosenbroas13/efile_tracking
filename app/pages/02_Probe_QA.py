@@ -64,6 +64,9 @@ def _compute_totals(docs_df: pd.DataFrame, pages_df: pd.DataFrame, summary: Dict
     if mostly_black_pages is None and "is_mostly_black" in pages_df.columns:
         mostly_black_pages = int(pages_df[pages_df["is_mostly_black"] == True].shape[0])  # noqa: E712
     mostly_black_pages = mostly_black_pages or 0
+    black_pages_checked = 0
+    if "is_mostly_black" in pages_df.columns:
+        black_pages_checked = int(pages_df["is_mostly_black"].notna().sum())
 
     baseline_ocr = summary.get("estimated_ocr_pages_baseline")
     if baseline_ocr is None:
@@ -73,7 +76,8 @@ def _compute_totals(docs_df: pd.DataFrame, pages_df: pd.DataFrame, summary: Dict
         {
             "classification_counts": summary.get("classification_counts", {}),
             "mostly_black_pages": mostly_black_pages,
-            "mostly_black_pct": safe_pct(mostly_black_pages, total_pages),
+            "mostly_black_pct": safe_pct(mostly_black_pages, black_pages_checked),
+            "black_pages_checked": black_pages_checked,
             "pages_with_text": pages_with_text,
             "pages_without_text": max(total_pages - pages_with_text, 0),
             "estimated_ocr_pages_baseline": baseline_ocr,
@@ -113,6 +117,12 @@ def _downloadable_table(df: pd.DataFrame, label: str):
         df.to_csv(index=False).encode("utf-8"),
         file_name=f"{label.replace(' ', '_').lower()}.csv",
     )
+
+
+def _format_pct_or_na(value: float | None) -> str:
+    if value is None or pd.isna(value):
+        return "n/a"
+    return format_pct(float(value))
 
 
 # Page rendering
@@ -181,7 +191,7 @@ def main():
         format_pct(safe_pct(totals.get("estimated_ocr_pages_baseline", 0), totals.get("total_pages", 0))),
     )
 
-    metrics2 = st.columns(3)
+    metrics2 = st.columns(4)
     metrics2[0].metric(
         "Adjusted OCR pages",
         f"{adjusted_ocr:,}",
@@ -190,8 +200,20 @@ def main():
     classification = _classification_breakdown(docs_df, summary)
     cls_text = " | ".join([f"{k}: {v}" for k, v in classification.items()]) if classification else "Unavailable"
     metrics2[1].metric("Doc classifications", cls_text)
+    black_pages_checked = totals.get("black_pages_checked", 0)
+    metrics2[2].metric(
+        "Black pages checked",
+        f"{black_pages_checked:,}",
+        format_pct(safe_pct(black_pages_checked, totals.get("total_pages", 0))),
+    )
     ignored_total = totals.get("ignored_non_pdf_total") or summary.get("ignored_non_pdf_total") or 0
-    metrics2[2].metric("Ignored non-PDF artifacts", f"{ignored_total:,}")
+    metrics2[3].metric("Ignored non-PDF artifacts", f"{ignored_total:,}")
+    if totals.get("total_pages") and totals.get("black_pages_checked", 0) == 0:
+        st.warning(
+            "Mostly-black page metrics were not calculated for this run. "
+            "This usually happens when the PDF rendering dependency is missing, "
+            "so the probe could not analyze page pixels."
+        )
 
     if totals.get("ignored_non_pdf_files"):
         st.markdown("#### Ignored non-PDF artifacts (by extension)")
@@ -256,9 +278,9 @@ def main():
 
     def _prep_docs(df: pd.DataFrame) -> pd.DataFrame:
         base = df.copy()
-        base["mostly_black_pct"] = safe_series(base, "mostly_black_pct", 0)
-        base["text_coverage_pct"] = safe_series(base, "text_coverage_pct", 0)
-        base["page_count"] = safe_series(base, "page_count", 0)
+        base["mostly_black_pct"] = pd.to_numeric(safe_series(base, "mostly_black_pct", None), errors="coerce")
+        base["text_coverage_pct"] = pd.to_numeric(safe_series(base, "text_coverage_pct", 0), errors="coerce").fillna(0)
+        base["page_count"] = pd.to_numeric(safe_series(base, "page_count", 0), errors="coerce").fillna(0)
         base["classification"] = safe_series(base, "classification", "Unknown")
         base["top_level_folder"] = safe_series(base, "top_level_folder", "")
         base["rel_path"] = safe_series(base, "rel_path", "")
@@ -330,7 +352,7 @@ def main():
         doc_info_cols = st.columns(3)
         doc_info_cols[0].metric("Pages", int(doc_row.get("page_count", 0)))
         doc_info_cols[1].metric("Text coverage", format_pct(float(doc_row.get("text_coverage_pct", 0))))
-        doc_info_cols[2].metric("Mostly-black", format_pct(float(doc_row.get("mostly_black_pct", 0))))
+        doc_info_cols[2].metric("Mostly-black", _format_pct_or_na(doc_row.get("mostly_black_pct")))
 
         if "doc_id" not in pages_df.columns:
             st.warning(

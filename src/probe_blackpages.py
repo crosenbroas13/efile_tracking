@@ -217,6 +217,7 @@ def evaluate_black_pages(
         row.doc_id: {
             "pages_mostly_black": 0,
             "page_count": 0,
+            "pages_black_checked": 0,
             "ratios": [],
             "gray_medians": [],
         }
@@ -291,7 +292,9 @@ def evaluate_black_pages(
             else:
                 metrics_dict = _black_ratio_from_image(img, config)
             ratio = metrics_dict.get("black_ratio_fixed") or 0.0
-            is_black = bool(metrics_dict.get("is_mostly_black"))
+            is_black_value = metrics_dict.get("is_mostly_black")
+            is_black = bool(is_black_value)
+            has_black_metrics = is_black_value is not None
             base_record = {
                 "doc_id": row.doc_id,
                 "rel_path": getattr(row, "rel_path", None),
@@ -321,6 +324,8 @@ def evaluate_black_pages(
             else:
                 records.append(base_record)
             doc_records[row.doc_id]["page_count"] += 1
+            if has_black_metrics:
+                doc_records[row.doc_id]["pages_black_checked"] += 1
             if metrics_dict.get("black_ratio_fixed") is not None:
                 doc_records[row.doc_id]["ratios"].append(metrics_dict.get("black_ratio_fixed") or 0.0)
             if metrics_dict.get("gray_median") is not None:
@@ -331,10 +336,12 @@ def evaluate_black_pages(
     doc_rows: List[Dict] = []
     for row in pdfs.itertuples(index=False):
         doc_entry = doc_records.get(
-            row.doc_id, {"pages_mostly_black": 0, "page_count": 0, "ratios": [], "gray_medians": []}
+            row.doc_id,
+            {"pages_mostly_black": 0, "page_count": 0, "pages_black_checked": 0, "ratios": [], "gray_medians": []},
         )
         page_count = doc_entry["page_count"]
         mostly_black = doc_entry["pages_mostly_black"]
+        pages_black_checked = doc_entry.get("pages_black_checked", 0)
         ratio_list = doc_entry["ratios"]
         median_list = doc_entry.get("gray_medians", [])
         avg_gray_median = sum(median_list) / len(median_list) if median_list else 0
@@ -346,8 +353,9 @@ def evaluate_black_pages(
                 "abs_path": row.abs_path,
                 "top_level_folder": getattr(row, "top_level_folder", None),
                 "page_count": page_count,
+                "pages_black_checked": pages_black_checked,
                 "pages_mostly_black": mostly_black,
-                "mostly_black_pct": (mostly_black / page_count) if page_count else 0,
+                "mostly_black_pct": (mostly_black / pages_black_checked) if pages_black_checked else None,
                 "black_ratio_avg": sum(ratio_list) / len(ratio_list) if ratio_list else 0,
                 "gray_median_avg": avg_gray_median,
                 "gray_median_p50": p50_gray_median,
