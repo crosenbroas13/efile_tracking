@@ -82,6 +82,14 @@ def _summarize(docs_df: pd.DataFrame, pages_df: pd.DataFrame, config: ProbeRunCo
         "doc_text_pct_text": config.doc_text_pct_text,
         "doc_text_pct_scanned": config.doc_text_pct_scanned,
     }
+    if meta and meta.get("text_scan_merge"):
+        summary["text_scan_merge"] = meta.get("text_scan_merge")
+        if not meta["text_scan_merge"].get("merged"):
+            reason = meta["text_scan_merge"].get("reason", "")
+            if reason and reason not in {"no_text_scan", "missing_data"}:
+                summary.setdefault("warnings", []).append(
+                    "Latest text_scan run did not match this probe run; text_scan signals were not merged."
+                )
     doc_type_eval = _evaluate_doc_types(docs_df)
     if doc_type_eval:
         summary["doc_type_evaluation"] = doc_type_eval

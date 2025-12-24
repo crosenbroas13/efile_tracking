@@ -56,6 +56,31 @@ This toolkit inventories DOJ document drops and runs light-touch probes to estim
   - `--model LATEST|PATH|MODEL_ID` to select the model.  
   - `--min-model-confidence 0.70` to control when model predictions are trusted.
 
+## Text Scan (Text Quality + Content Type)
+The **Text Scan** step checks PDFs that *appear* text-based and measures whether the extracted text is actually usable. It also predicts a **high-level content type** (email, legal filing, memo, etc.) so reviewers can triage faster. **No full text is stored**—only numeric quality signals, category predictions, and minimal rule-hit counts.
+
+### Why this matters (plain language)
+- **Catches “fake text” PDFs**: Some PDFs have empty or junk text layers that pass simple “has text” rules. Text Scan flags these so reviewers can relabel them as **IMAGE_OF_TEXT_PDF** instead of treating them as ready-to-search text.
+- **Adds context for reviewers**: Content type predictions help non-technical reviewers prioritize emails vs. legal filings vs. financial docs without opening every file.
+
+### CLI command
+```bash
+python -m doj_doc_explorer.cli text_scan run --inventory LATEST --probe LATEST --out ./outputs
+```
+
+### Outputs
+- `outputs/text_scan/<run_id>/doc_text_signals.parquet|csv`
+- `outputs/text_scan/<run_id>/text_scan_summary.json`
+- `outputs/text_scan/<run_id>/text_scan_run_log.json`
+- `outputs/text_scan/LATEST.json`
+
+### Streamlit impact
+The **Text Based Documents** page now merges Text Scan signals so it can:
+- Confirm **verified text** PDFs (GOOD text quality),
+- Highlight **suspicious text layers** (EMPTY/LOW quality),
+- Provide a **content type breakdown** for text-ready documents,
+- Export a **labeling queue** for suspect text-based PDFs.
+
 ## PDF type labeling (rerun-safe)
 Use this workflow when you need a human-reviewed PDF type label that stays valid even if you rerun inventory or probe jobs later.
 
@@ -150,6 +175,7 @@ python -m doj_doc_explorer.cli doc_type queue \
 ## Outputs and versioning
 - `outputs/inventory/`: versioned inventory runs plus `LATEST.json`.
 - `outputs/probes/`: versioned probe runs plus `LATEST.json` referencing the inventory path.
+- `outputs/text_scan/`: text-quality and content-type scans plus `LATEST.json`.
 - `outputs/labels/`: PDF type labels, reconciliation reports, training snapshots, and predictions.
 - `outputs/models/doc_type/`: trained doc-type classifiers (`model.joblib`, `model_card.json`, `training_snapshot.csv`).
 - `outputs/classification/doc_type/`: prediction runs (`doc_type_predictions.csv`) created by the `doc_type predict` command.
@@ -187,9 +213,9 @@ Use this checklist to understand what lives where. It is written in plain langua
   - `app/pages/01_Inventory_QA.py`: Thin wrapper that hosts the inventory QA view inside the multipage app.
   - `app/pages/02_Probe_QA.py`: Probe results viewer with charts and download buttons for the readiness metrics.
   - `app/pages/03_Probe_Run_Compare.py`: Side-by-side comparison page for two probe runs, highlighting shifts in totals, document-level readiness, and **non-PDF inventory file types** (so reviewers can see if new spreadsheets, images, or text files were added between runs).
-  - `app/pages/04_Document_Filter.py`: Filterable document table that merges probe outputs with inventory metadata so reviewers can quickly spot long, low-text, or unusual files without opening the PDFs.
-  - `app/pages/04_Probe_Document_Viewer.py`: Single-document preview page with relative path search and alternate image previews for PDF files.
-  - `app/pages/05_Text_Based_Documents.py`: Focused view for **100% text-based** PDFs, showing the latest text-ready share as a pie chart and pairing each PDF preview with its extracted text so reviewers can quickly confirm what is ready for immediate analysis. The preview toggle includes a **Chrome-safe rendered image** option, which is helpful when embedded PDFs are blocked in a browser or when sharing with non-technical reviewers who need a quick visual check without downloading files.
+- `app/pages/04_Document_Filter.py`: Filterable document table that merges probe outputs with inventory metadata so reviewers can quickly spot long, low-text, or unusual files without opening the PDFs.
+- `app/pages/04_Probe_Document_Viewer.py`: Single-document preview page with relative path search and alternate image previews for PDF files.
+- `app/pages/05_Text_Based_Documents.py`: Focused view for **text-based PDFs** that now blends probe results with **Text Scan** quality signals. It separates **verified text** from **suspicious text layers**, shows **content type breakdowns**, and provides CSV exports for labeling queues. The preview toggle includes a **Chrome-safe rendered image** option, which is helpful when embedded PDFs are blocked in a browser or when sharing with non-technical reviewers who need a quick visual check without downloading files.
   - `app/pages/06_PDF_Labeling.py`: Guided labeling workspace for PDF type review. It **only lists PDFs up to five pages** (using the latest probe run’s page counts) and renders up to five page images so non-technical reviewers can label quickly without opening an embedded PDF viewer.
 
 - **Core package (`src/` folder)**
@@ -210,7 +236,9 @@ Use this checklist to understand what lives where. It is written in plain langua
   - `src/probe_outputs.py`: Saves probe outputs (CSV/Parquet plus summaries and logs) to versioned run folders.
   - `src/probe_io.py`: Loads probe runs from disk and lists available runs for dashboard use.
   - `src/probe_viz_helpers.py`: Small formatting and parsing helpers used by the Probe QA dashboard.
+  - `src/text_scan_io.py`: Loads text-scan runs and merges text quality signals into dashboards.
   - `src/doj_doc_explorer/pdf_type/labels.py`: Rerun-safe PDF type labeling utilities (label storage, reconciliation, and rel_path normalization).
+  - `src/doj_doc_explorer/text_scan/`: Text Scan pipeline (quality metrics, content type rules, and run outputs).
   - `src/doj_doc_explorer/classification/doc_type/features.py`: Numeric, page-sampled features (fonts, images, and thumbnail statistics) used for doc-type ML.
   - `src/doj_doc_explorer/classification/doc_type/model.py`: Training, saving, and inference helpers for doc-type classification.
   - `src/doj_doc_explorer/utils/paths.py`: Shared helper for normalizing relative paths so labels match inventories across reruns.

@@ -14,6 +14,7 @@ from ..classification.doc_type.features import DEFAULT_DPI, DEFAULT_PAGES_SAMPLE
 from ..pdf_type.labels import labels_path, load_labels, match_labels_to_inventory
 from ..utils.paths import normalize_rel_path
 from ..utils.io import ensure_dir
+from ..text_scan.io import load_latest_text_scan, merge_text_scan_signals
 from .outputs import write_probe_outputs
 
 
@@ -53,6 +54,9 @@ def run_probe(config: ProbeRunConfig) -> Tuple[pd.DataFrame, pd.DataFrame, Dict]
     all_errors = text_errors
     runtime = time.time() - start_time
     docs_df, label_reconciliation = _augment_doc_type_metadata(docs_df, pdfs, config)
+    text_scan_merge = _merge_text_scan(docs_df, config.paths)
+    if text_scan_merge.get("merged"):
+        docs_df = text_scan_merge["docs_df"]
     meta = {
         "probe_run_seconds": runtime,
         "error_count": len(all_errors),
@@ -62,6 +66,7 @@ def run_probe(config: ProbeRunConfig) -> Tuple[pd.DataFrame, pd.DataFrame, Dict]
         "ignored_non_pdf_mime_types": ignored_mime_counts,
         "ignored_non_pdf_total": int(sum(ignored_counts.values())),
         "label_reconciliation": label_reconciliation,
+        "text_scan_merge": {k: v for k, v in text_scan_merge.items() if k != "docs_df"},
     }
     return pages_df, docs_df, meta
 
@@ -134,6 +139,30 @@ def _augment_doc_type_metadata(
 
     docs_df = apply_doc_type_decision(docs_df, min_confidence=config.min_model_confidence)
     return docs_df, label_reconciliation
+
+
+def _merge_text_scan(docs_df: pd.DataFrame, paths: ProbePaths) -> Dict[str, object]:
+    text_scan_df, _summary, run_log = load_latest_text_scan(str(paths.outputs_root))
+    if text_scan_df.empty:
+        return {"merged": False, "reason": "no_text_scan"}
+    if run_log.get("inventory_path"):
+        try:
+            scan_inventory = Path(str(run_log.get("inventory_path"))).resolve()
+            probe_inventory = paths.inventory.resolve()
+        except Exception:
+            scan_inventory = Path(str(run_log.get("inventory_path")))
+            probe_inventory = paths.inventory
+        if scan_inventory != probe_inventory:
+            return {
+                "merged": False,
+                "reason": "inventory_mismatch",
+                "inventory_path": str(paths.inventory),
+                "text_scan_inventory_path": run_log.get("inventory_path"),
+            }
+    merged_df, merge_info = merge_text_scan_signals(docs_df, text_scan_df)
+    if merge_info.get("merged"):
+        merge_info["docs_df"] = merged_df
+    return merge_info
 
 
 __all__ = ["run_probe", "run_probe_and_save"]
