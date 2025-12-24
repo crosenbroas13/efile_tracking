@@ -9,8 +9,8 @@ import pandas as pd
 from src.probe_readiness import evaluate_readiness, list_pdfs
 
 from ..config import ProbeRunConfig
-from ..classification.doc_type.model import apply_doc_type_decision, load_doc_type_model, predict_doc_types
-from ..classification.doc_type.features import DEFAULT_DPI, DEFAULT_PAGES_SAMPLED, DEFAULT_SEED
+from ..classification.doc_type.constants import DEFAULT_DPI, DEFAULT_PAGES_SAMPLED, DEFAULT_SEED
+from ..classification.doc_type.decision import apply_doc_type_decision
 from ..pdf_type.labels import labels_path, load_labels, match_labels_to_inventory
 from ..utils.paths import normalize_rel_path
 from ..utils.io import ensure_dir
@@ -127,6 +127,8 @@ def _augment_doc_type_metadata(
 
     model_artifacts = None
     if config.use_doc_type_model and config.doc_type_model_ref:
+        from ..classification.doc_type.model import load_doc_type_model, predict_doc_types
+
         model_artifacts = load_doc_type_model(config.doc_type_model_ref, config.paths.outputs_root)
     if model_artifacts:
         feature_config = model_artifacts.model_card.get("feature_config", {})

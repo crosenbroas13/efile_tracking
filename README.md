@@ -138,6 +138,17 @@ python -m doj_doc_explorer.cli pdf_type predict --inventory LATEST --probe LATES
 This workflow turns human labels into a **doc-type classifier** that can distinguish:
 **TEXT_PDF**, **IMAGE_OF_TEXT_PDF**, **IMAGE_PDF**, and **MIXED_PDF**. It is designed for **CPU-only, local-only** runs and stores **numeric features only** (no extracted text or saved page images).
 
+### Dependencies (plain language)
+- **Optional on purpose**: the core inventory and probe steps run without extra PDF-rendering libraries.  
+- **Required for ML features**: to train or run the doc-type model, install **PyMuPDF** (this provides the `fitz` module).  
+  ```bash
+  pip install PyMuPDF
+  ```
+  If you accidentally installed the unrelated `fitz` package, uninstall it first so the correct dependency is used:
+  ```bash
+  pip uninstall fitz
+  ```
+
 ### Why this matters (plain language)
 - **Scanned text vs. photos** are easy to confuse with simple “has text” rules.  
   The ML model uses lightweight image statistics (entropy, edges, projection variance) to separate scanned text from photo-heavy PDFs.
@@ -192,6 +203,9 @@ python -m doj_doc_explorer.cli doc_type queue \
 - **Encrypted or unreadable PDFs**: they are logged in the run log and skipped; probes continue.
 - **Windows/Mac absolute paths**: the CLI resolves `~` and relative paths; prefer absolute paths if you keep datasets outside the repo.
 - **Missing dependencies**: ensure `pip install -e .` completed; `pyarrow` is used when present for parquet outputs.
+- **`fitz` / `static/` errors**: these usually mean the wrong `fitz` package is installed.  
+  Uninstall `fitz` and install **PyMuPDF** instead (see the doc-type model dependency note above).  
+  The probe runs without PyMuPDF unless you explicitly enable the doc-type model.
 - **Redaction metrics**: redaction scans are currently disabled, so you will not see redaction ratios or redaction warnings in the dashboards.
 
 ## Safety statement

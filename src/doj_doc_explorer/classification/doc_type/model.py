@@ -30,10 +30,12 @@ from ...pdf_type.labels import (
 from ...utils.git import current_git_commit
 from ...utils.io import ensure_dir, latest_probe, load_table, read_json, write_json
 from ...utils.paths import normalize_rel_path
-from .features import DEFAULT_DPI, DEFAULT_PAGES_SAMPLED, DEFAULT_SEED, extract_doc_features
+from .constants import DEFAULT_DPI, DEFAULT_PAGES_SAMPLED, DEFAULT_SEED
+from .decision import apply_doc_type_decision
+from .features import extract_doc_features
+from .registry import MODEL_POINTER, resolve_doc_type_model_path
 
 DOC_TYPE_LABELS = ["TEXT_PDF", "IMAGE_OF_TEXT_PDF", "IMAGE_PDF", "MIXED_PDF"]
-MODEL_POINTER = "LATEST.json"
 
 
 @dataclass(frozen=True)
@@ -170,28 +172,6 @@ def load_doc_type_model(model_ref: str, outputs_root: Path) -> Optional[ModelArt
     return ModelArtifacts(model=joblib.load(model_path), model_dir=model_dir, model_id=model_dir.name, model_card=model_card)
 
 
-def resolve_doc_type_model_path(model_ref: str, outputs_root: Path) -> Optional[Path]:
-    if not model_ref or model_ref == "LATEST":
-        pointer = read_json(outputs_root / "models" / "doc_type" / MODEL_POINTER)
-        run_dir = pointer.get("run_dir")
-        if run_dir:
-            candidate = outputs_root / run_dir / "model.joblib"
-            if candidate.exists():
-                return candidate
-        return None
-    candidate = Path(model_ref)
-    if candidate.exists():
-        if candidate.is_dir():
-            model_path = candidate / "model.joblib"
-            return model_path if model_path.exists() else None
-        return candidate
-    run_dir = outputs_root / "models" / "doc_type" / model_ref
-    model_path = run_dir / "model.joblib"
-    if model_path.exists():
-        return model_path
-    return None
-
-
 def predict_doc_types(
     *,
     pdfs_df: pd.DataFrame,
@@ -271,25 +251,6 @@ def _build_reason_features(
         }
         reason_rows.append(json.dumps(reason))
     return reason_rows
-
-
-def apply_doc_type_decision(docs_df: pd.DataFrame, *, min_confidence: float) -> pd.DataFrame:
-    docs_df = docs_df.copy()
-    def _choose(row: pd.Series) -> tuple[str, str]:
-        truth = str(row.get("doc_type_truth") or "").strip()
-        if truth:
-            return truth, "TRUTH"
-        model_pred = str(row.get("doc_type_model_pred") or "").strip()
-        model_conf = row.get("model_confidence")
-        if model_pred and model_conf is not None and not pd.isna(model_conf) and float(model_conf) >= min_confidence:
-            return model_pred, "MODEL"
-        heuristic = str(row.get("doc_type_heuristic") or "").strip()
-        return heuristic, "HEURISTIC"
-
-    decisions = docs_df.apply(_choose, axis=1, result_type="expand")
-    docs_df["doc_type_final"] = decisions[0]
-    docs_df["doc_type_source"] = decisions[1]
-    return docs_df
 
 
 def _evaluate_model(pipeline: Pipeline, X_eval: pd.DataFrame, y_eval: pd.Series) -> Dict[str, object]:

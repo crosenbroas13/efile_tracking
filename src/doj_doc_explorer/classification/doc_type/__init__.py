@@ -1,16 +1,11 @@
 """Doc-type classification utilities."""
 
-from .features import (  # noqa: F401
-    DEFAULT_DPI,
-    DEFAULT_PAGES_SAMPLED,
-    DEFAULT_SEED,
-    extract_doc_features,
-)
+from .constants import DEFAULT_DPI, DEFAULT_PAGES_SAMPLED, DEFAULT_SEED  # noqa: F401
+from .decision import apply_doc_type_decision  # noqa: F401
+from .registry import resolve_doc_type_model_path  # noqa: F401
 from .model import (  # noqa: F401
     DOC_TYPE_LABELS,
-    apply_doc_type_decision,
     load_doc_type_model,
-    resolve_doc_type_model_path,
 )
 
 __all__ = [
@@ -19,7 +14,6 @@ __all__ = [
     "DEFAULT_SEED",
     "DOC_TYPE_LABELS",
     "apply_doc_type_decision",
-    "extract_doc_features",
     "load_doc_type_model",
     "resolve_doc_type_model_path",
 ]
