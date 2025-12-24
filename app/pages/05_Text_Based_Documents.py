@@ -187,8 +187,8 @@ def _bar_chart(df: pd.DataFrame) -> None:
         .fillna("UNKNOWN")
         .value_counts()
         .reset_index()
-        .rename(columns={"index": "Content type", "content_type_pred": "Documents"})
     )
+    counts.columns = ["Content type", "Documents"]
     fig = px.bar(
         counts,
         x="Content type",
