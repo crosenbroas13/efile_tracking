@@ -7,13 +7,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
-import fitz
 import numpy as np
 import pandas as pd
 
 from ...utils.paths import normalize_rel_path
+from ...utils.fitz_loader import load_fitz
 from .constants import DEFAULT_DPI, DEFAULT_PAGES_SAMPLED, DEFAULT_SEED
 
+fitz = load_fitz()
 
 @dataclass(frozen=True)
 class FeatureConfig:

@@ -1,5 +1,4 @@
 import hashlib
-import importlib.util
 import sys
 from pathlib import Path, PurePosixPath
 from typing import Dict, Optional
@@ -25,6 +24,7 @@ from src.doj_doc_explorer.pdf_type.labels import (
     reconcile_labels,
     write_labels,
 )
+from src.doj_doc_explorer.utils.fitz_loader import load_fitz_optional
 from src.doj_doc_explorer.utils.paths import normalize_rel_path
 from src.io_utils import (
     format_run_label,
@@ -119,10 +119,13 @@ def _resolve_pdf_path(abs_path: str, output_root: Optional[str]) -> Optional[Pat
 
 
 def _render_pdf_image_preview(path: Path, max_pages: int = MAX_LABEL_PAGES) -> bool:
-    if not importlib.util.find_spec("fitz"):
+    fitz = load_fitz_optional()
+    if not fitz:
         return False
-    fitz = importlib.import_module("fitz")
-    doc = fitz.open(path)
+    try:
+        doc = fitz.open(path)
+    except Exception:
+        return False
     try:
         if doc.page_count < 1:
             return False

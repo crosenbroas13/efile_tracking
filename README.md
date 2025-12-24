@@ -205,7 +205,8 @@ python -m doj_doc_explorer.cli doc_type queue \
 - **Missing dependencies**: ensure `pip install -e .` completed; `pyarrow` is used when present for parquet outputs.
 - **`fitz` / `static/` errors**: these usually mean the wrong `fitz` package is installed.  
   Uninstall `fitz` and install **PyMuPDF** instead (see the doc-type model dependency note above).  
-  The probe runs without PyMuPDF unless you explicitly enable the doc-type model.
+  The probe and Streamlit previews now detect this mismatch and give a clear fix message so non-technical users
+  know why image previews or doc-type features are unavailable until PyMuPDF is installed.
 - **Redaction metrics**: redaction scans are currently disabled, so you will not see redaction ratios or redaction warnings in the dashboards.
 
 ## Safety statement
