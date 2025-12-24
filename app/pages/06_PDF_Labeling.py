@@ -1,5 +1,8 @@
+import hashlib
+import importlib.util
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+from typing import Dict, Optional
 
 APP_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(APP_ROOT) not in sys.path:
@@ -31,8 +34,21 @@ from src.io_utils import (
     pick_default_inventory,
 )
 from src.probe_readiness import stable_doc_id
+from src.probe_io import list_probe_runs, load_probe_run
 
 st.set_page_config(page_title="PDF Labeling", layout="wide")
+
+MAX_LABEL_PAGES = 5
+
+
+@st.cache_data(show_spinner=False)
+def cached_list_probe_runs(out_dir_str: str) -> list[Dict]:
+    return list_probe_runs(out_dir_str)
+
+
+@st.cache_data(show_spinner=False)
+def cached_load_probe_run(out_dir_str: str, run_id: str):
+    return load_probe_run(out_dir_str, run_id)
 
 
 def _initial_out_dir_from_args() -> Path:
@@ -73,6 +89,75 @@ def _build_inventory_selector(out_dir: Path) -> tuple[Path | None, str | None]:
     return options.get(selection), selection
 
 
+def _safe_zip_entry_path(entry_name: str) -> Path:
+    entry = PurePosixPath(entry_name)
+    parts = [part for part in entry.parts if part not in ("", ".", "..")]
+    return Path(*parts) if parts else Path("entry.pdf")
+
+
+def _zip_extract_dir(zip_path: Path, extract_root: Path) -> Path:
+    digest = hashlib.sha256(str(zip_path).encode("utf-8")).hexdigest()[:8]
+    return extract_root / f"{zip_path.stem}_{digest}"
+
+
+def _split_zip_abs_path(abs_path: str) -> Optional[tuple[Path, str]]:
+    if "::" not in abs_path:
+        return None
+    zip_part, entry_part = abs_path.split("::", 1)
+    if not zip_part or not entry_part:
+        return None
+    return Path(zip_part), entry_part
+
+
+def _resolve_pdf_path(abs_path: str, output_root: Optional[str]) -> Optional[Path]:
+    if not abs_path:
+        return None
+    if "::" not in abs_path:
+        return Path(abs_path)
+    split = _split_zip_abs_path(abs_path)
+    if not split:
+        return None
+    zip_path, entry_name = split
+    if not output_root:
+        return None
+    extract_root = Path(output_root) / "probe_extracts"
+    safe_entry = _safe_zip_entry_path(entry_name)
+    return _zip_extract_dir(zip_path, extract_root) / safe_entry
+
+
+def _render_pdf_image_preview(path: Path, max_pages: int = MAX_LABEL_PAGES) -> bool:
+    if not importlib.util.find_spec("fitz"):
+        return False
+    fitz = importlib.import_module("fitz")
+    doc = fitz.open(path)
+    try:
+        if doc.page_count < 1:
+            return False
+        pages_to_show = min(doc.page_count, max_pages)
+        for page_index in range(pages_to_show):
+            page = doc.load_page(page_index)
+            pix = page.get_pixmap()
+            st.image(pix.tobytes("png"), caption=f"Page {page_index + 1} of {doc.page_count}")
+        if doc.page_count > pages_to_show:
+            st.caption(
+                f"Only the first {pages_to_show} pages are shown here to keep the review queue focused."
+            )
+        return True
+    finally:
+        doc.close()
+
+
+def _merge_page_counts(inventory_df: pd.DataFrame, docs_df: pd.DataFrame) -> pd.DataFrame:
+    if docs_df.empty or "rel_path" not in docs_df.columns:
+        inventory_df = inventory_df.copy()
+        inventory_df["page_count"] = pd.NA
+        return inventory_df
+    docs_view = docs_df.copy()
+    docs_view["rel_path"] = docs_view["rel_path"].astype(str).map(normalize_rel_path)
+    docs_view["page_count"] = pd.to_numeric(docs_view.get("page_count"), errors="coerce")
+    return inventory_df.merge(docs_view[["rel_path", "page_count"]], on="rel_path", how="left")
+
+
 st.title("PDF Type Labeling")
 st.caption("Friendly workspace for applying human-reviewed labels and saving them to the master labels file.")
 
@@ -81,6 +166,13 @@ st.markdown(
     Use this page to confirm whether a PDF is **text-based**, **image-based**, or **mixed**.
     Every label you apply is written to a master CSV file that can be reused across reruns,
     so reviewers do not have to repeat work.
+    """
+)
+st.markdown(
+    f"""
+    **Why the list is short:** this labeling queue only shows PDFs that are **{MAX_LABEL_PAGES} pages or fewer**.
+    Short documents are faster to review and make a clean starter dataset for future ML training, so each label
+    you apply here can become a high-quality example in the training repository.
     """
 )
 
@@ -109,11 +201,27 @@ if inventory_df.empty:
 inventory_df["rel_path"] = inventory_df["rel_path"].astype(str).map(normalize_rel_path)
 inventory_id = inventory_identity(selected_path)
 
+probe_runs = cached_list_probe_runs(str(out_dir))
+if not probe_runs:
+    st.warning("No probe runs found. Run a probe so this page can filter PDFs by page count.")
+    st.stop()
+
+latest_probe = probe_runs[0]
+docs_df, _pages_df, _summary, _run_log = cached_load_probe_run(str(out_dir), latest_probe["probe_run_id"])
+if docs_df.empty or "page_count" not in docs_df.columns:
+    st.warning("The latest probe run does not include page counts. Re-run the probe to continue.")
+    st.stop()
+st.caption(f"Latest probe run used for page counts: {latest_probe['probe_run_id']}")
+
 labels_csv = labels_path(out_dir)
 labels_df = load_labels(labels_csv, inventory_df)
 
 st.markdown("### 2) Apply a label")
-st.caption("Pick a PDF, choose a label, and save it to the master file. Notes are optional but helpful.")
+st.caption(
+    "Pick a PDF, choose a label, and save it to the master file. Notes are optional but helpful. "
+    f"This view only lists documents with {MAX_LABEL_PAGES} or fewer pages so each label can double as "
+    "a compact ML training example."
+)
 
 filter_text = st.text_input(
     "Filter PDFs by folder or filename",
@@ -121,10 +229,21 @@ filter_text = st.text_input(
     help="Type part of a path to narrow the list, especially for large inventories.",
 )
 
-inventory_ui = inventory_df.copy()
+inventory_ui = _merge_page_counts(inventory_df, docs_df)
+inventory_ui["page_count"] = pd.to_numeric(inventory_ui["page_count"], errors="coerce").fillna(0)
+inventory_ui = inventory_ui[
+    (inventory_ui["page_count"] > 0) & (inventory_ui["page_count"] <= MAX_LABEL_PAGES)
+].copy()
 label_lookup = labels_df.set_index("rel_path")["label"].to_dict() if not labels_df.empty else {}
 inventory_ui["current_label"] = inventory_ui["rel_path"].map(label_lookup).fillna("")
 inventory_ui["is_labeled"] = inventory_ui["current_label"].astype(str).str.strip() != ""
+
+if inventory_ui.empty:
+    st.warning(
+        f"No PDFs under {MAX_LABEL_PAGES} pages were found in the latest probe run. "
+        "Run a probe on the inventory or adjust the inventory selection."
+    )
+    st.stop()
 
 show_labeled = st.checkbox(
     "Include already labeled PDFs",
@@ -139,27 +258,62 @@ if filter_text:
 candidate_df = candidate_df.sort_values("rel_path")
 candidate_paths = candidate_df["rel_path"].tolist()
 
-with st.form("apply_label"):
-    rel_path = st.selectbox(
-        "PDF to label",
-        options=candidate_paths or ["No matching PDFs found"],
-        help="If the list is long, use the filter above to narrow it.",
-    )
-    label_value = st.selectbox("Label", options=sorted(LABEL_VALUES))
-    notes = st.text_area("Reviewer notes (optional)", help="Record anything that helps explain your choice later.")
-    source_probe_run = st.text_input(
-        "Source probe run ID (optional)",
-        help="If a probe run informed the decision, paste the run ID here for traceability.",
-    )
-    labeling_version = st.text_input(
-        "Labeling schema version (optional)",
-        help="Use this if your team tracks different labeling guidelines over time.",
-    )
-    overwrite = st.checkbox("Overwrite existing label if one exists")
-    submitted = st.form_submit_button("Save label to master file")
+def _format_candidate_option(value: str) -> str:
+    page_count = candidate_df.loc[candidate_df["rel_path"] == value, "page_count"]
+    page_count = int(page_count.iloc[0]) if not page_count.empty else 0
+    return f"{value} · {page_count} pages"
+
+
+selected_rel_path = st.selectbox(
+    "PDF to label",
+    options=candidate_paths or ["No matching PDFs found"],
+    format_func=_format_candidate_option if candidate_paths else None,
+    help="If the list is long, use the filter above to narrow it.",
+)
+
+detail_cols = st.columns([2, 3])
+with detail_cols[0]:
+    with st.form("apply_label"):
+        label_value = st.selectbox("Label", options=sorted(LABEL_VALUES))
+        notes = st.text_area(
+            "Reviewer notes (optional)",
+            help="Record anything that helps explain your choice later.",
+        )
+        source_probe_run = st.text_input(
+            "Source probe run ID (optional)",
+            help="If a probe run informed the decision, paste the run ID here for traceability.",
+        )
+        labeling_version = st.text_input(
+            "Labeling schema version (optional)",
+            help="Use this if your team tracks different labeling guidelines over time.",
+        )
+        overwrite = st.checkbox("Overwrite existing label if one exists")
+        submitted = st.form_submit_button("Save label to master file")
+
+with detail_cols[1]:
+    if candidate_paths:
+        preview_row = candidate_df[candidate_df["rel_path"] == selected_rel_path].iloc[0]
+        abs_path = str(preview_row.get("abs_path") or "")
+        pdf_path = _resolve_pdf_path(abs_path, out_dir_text)
+        st.markdown("#### Chrome-safe PDF preview (up to 5 pages)")
+        if not pdf_path or not pdf_path.exists():
+            st.warning("PDF file not found on disk. Confirm the inventory path is still valid.")
+        else:
+            rendered = _render_pdf_image_preview(pdf_path, MAX_LABEL_PAGES)
+            if not rendered:
+                st.info(
+                    "Install PyMuPDF (`pip install pymupdf`) to render page images in the browser. "
+                    "This keeps previews Chrome-safe while staying entirely local."
+                )
+                st.download_button(
+                    "Download PDF",
+                    data=pdf_path.read_bytes(),
+                    file_name=pdf_path.name,
+                    mime="application/pdf",
+                )
 
 if submitted and candidate_paths:
-    rel_path = normalize_rel_path(rel_path)
+    rel_path = normalize_rel_path(selected_rel_path)
     existing = labels_df[labels_df["rel_path"] == rel_path]
     if not existing.empty and not overwrite:
         st.error("This PDF already has a label. Enable overwrite to replace it.")

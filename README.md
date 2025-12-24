@@ -57,6 +57,8 @@ Use this workflow when you need a human-reviewed PDF type label that stays valid
 - **Orphan handling**: if a file disappears in a new inventory, the label is kept but marked as *orphaned* in memory. It will not be used for training or prediction until the file returns, so nothing is silently lost.
 - **Safety for reruns**: every labeling, training, and prediction run writes a reconciliation report to `outputs/labels/label_reconciliation_<timestamp>.json`, so non-technical reviewers can see how many labels still match the latest inventory.
 - **Friendly labeling UI**: the Streamlit **PDF Labeling** page lets reviewers choose a PDF, apply a label, and save it to the master file without using the command line. This is the easiest path for non-technical reviewers who just need a guided form.
+- **Short-document focus for training**: the labeling UI only lists PDFs with **five pages or fewer** (based on the latest probe run). This keeps the review queue fast and produces a **clean, consistent training set** for future ML models because every label is tied to a compact, easy-to-verify document.
+- **Chrome-safe previews**: reviewers see up to **five rendered page images** per PDF instead of an embedded browser PDF, which avoids Chrome iframe restrictions and keeps the review entirely local.
 
 ### CLI commands
 These commands are designed to show the **relative path** first so reviewers can confirm the correct file.
@@ -124,7 +126,7 @@ Use this checklist to understand what lives where. It is written in plain langua
   - `app/pages/04_Document_Filter.py`: Filterable document table that merges probe outputs with inventory metadata so reviewers can quickly spot long, low-text, or unusual files without opening the PDFs.
   - `app/pages/04_Probe_Document_Viewer.py`: Single-document preview page with relative path search and alternate image previews for PDF files.
   - `app/pages/05_Text_Based_Documents.py`: Focused view for **100% text-based** PDFs, showing the latest text-ready share as a pie chart and pairing each PDF preview with its extracted text so reviewers can quickly confirm what is ready for immediate analysis. The preview toggle includes a **Chrome-safe rendered image** option, which is helpful when embedded PDFs are blocked in a browser or when sharing with non-technical reviewers who need a quick visual check without downloading files.
-  - `app/pages/06_PDF_Labeling.py`: Guided labeling workspace for PDF type review. It lets reviewers pick a PDF, apply a label, add notes, and save everything to the master labels CSV without touching the CLI.
+  - `app/pages/06_PDF_Labeling.py`: Guided labeling workspace for PDF type review. It **only lists PDFs up to five pages** (using the latest probe run’s page counts) and renders up to five page images so non-technical reviewers can label quickly without opening an embedded PDF viewer.
 
 - **Core package (`src/` folder)**
   - `src/__init__.py`: Exposes the `InventoryRunner` and result dataclass for simple imports.
