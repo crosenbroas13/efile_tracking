@@ -48,6 +48,13 @@ This toolkit inventories DOJ document drops and runs light-touch probes to estim
   - the file must average at least **200 extractable characters per page**.  
   This two-step rule prevents tiny corner labels on photo-heavy PDFs from being mistaken as real text. In plain terms, it helps reviewers avoid calling a mostly-image document “text-based” just because a small ID tag was detected.
 - **Redaction checks are paused**: the current probe run focuses on text readiness only. This avoids dependencies on PDF rendering and keeps the metrics limited to signals we can measure directly (text presence, document classification, and page counts).
+- **Doc-type final decision (human-first)**: the probe now writes `doc_type_final` for each PDF using a simple priority:  
+  **TRUTH** (your label) → **MODEL** (if confidence ≥ 0.70) → **HEURISTIC** (the legacy rule).  
+  This makes it easy for non-technical reviewers to see *why* a document type was chosen, and it keeps human labels authoritative when they exist.
+- **Doc-type model usage flags**:  
+  - `--use-doc-type-model / --no-doc-type-model` to toggle ML usage.  
+  - `--model LATEST|PATH|MODEL_ID` to select the model.  
+  - `--min-model-confidence 0.70` to control when model predictions are trusted.
 
 ## PDF type labeling (rerun-safe)
 Use this workflow when you need a human-reviewed PDF type label that stays valid even if you rerun inventory or probe jobs later.
@@ -97,6 +104,41 @@ python -m doj_doc_explorer.cli pdf_type train --inventory LATEST
 python -m doj_doc_explorer.cli pdf_type predict --inventory LATEST --probe LATEST
 ```
 
+## Doc-type model (trained from your labels)
+This workflow turns human labels into a **doc-type classifier** that can distinguish:
+**TEXT_PDF**, **IMAGE_OF_TEXT_PDF**, **IMAGE_PDF**, and **MIXED_PDF**. It is designed for **CPU-only, local-only** runs and stores **numeric features only** (no extracted text or saved page images).
+
+### Why this matters (plain language)
+- **Scanned text vs. photos** are easy to confuse with simple “has text” rules.  
+  The ML model uses lightweight image statistics (entropy, edges, projection variance) to separate scanned text from photo-heavy PDFs.
+- **Human labels stay in control**. If a document is labeled, the probe will always use the label as the final doc type.
+
+### CLI commands
+```bash
+# Train a doc-type model from human labels + probe metrics.
+python -m doj_doc_explorer.cli doc_type train \
+  --inventory LATEST \
+  --probe LATEST \
+  --labels outputs/labels/pdf_type_labels.csv \
+  --out ./outputs
+
+# Predict doc types for selected docs (optionally only unlabeled).
+python -m doj_doc_explorer.cli doc_type predict \
+  --inventory LATEST \
+  --probe LATEST \
+  --model LATEST \
+  --out ./outputs \
+  --only-unlabeled
+
+# Queue the lowest-confidence docs for the next labeling batch.
+python -m doj_doc_explorer.cli doc_type queue \
+  --inventory LATEST \
+  --probe LATEST \
+  --model LATEST \
+  --k 200 \
+  --out ./outputs
+```
+
 ## Streamlit QA dashboards
 - Multipage launcher: `streamlit run app/Home.py -- --out ./outputs`. Use `--server.headless true` if you are running on a remote machine and need a URL to connect from your browser.
 - Pages read stored artifacts only; they do not rerun inventories or probes. Point them at `./outputs` to pick up the latest versioned runs via `LATEST.json`.
@@ -108,6 +150,8 @@ python -m doj_doc_explorer.cli pdf_type predict --inventory LATEST --probe LATES
 - `outputs/inventory/`: versioned inventory runs plus `LATEST.json`.
 - `outputs/probes/`: versioned probe runs plus `LATEST.json` referencing the inventory path.
 - `outputs/labels/`: PDF type labels, reconciliation reports, training snapshots, and predictions.
+- `outputs/models/doc_type/`: trained doc-type classifiers (`model.joblib`, `model_card.json`, `training_snapshot.csv`).
+- `outputs/classification/doc_type/`: prediction runs (`doc_type_predictions.csv`) created by the `doc_type predict` command.
 - `outputs/run_index.json`: a **centralized “latest run” index** keyed by the original dataset folder you scanned. Each entry records the most recent inventory **and** probe run for that dataset so repeated runs update one place without overwriting history.
 - `outputs/inventory.csv` and `outputs/inventory_summary.json` remain for older tooling; new code prefers versioned folders.
 
@@ -166,6 +210,8 @@ Use this checklist to understand what lives where. It is written in plain langua
   - `src/probe_io.py`: Loads probe runs from disk and lists available runs for dashboard use.
   - `src/probe_viz_helpers.py`: Small formatting and parsing helpers used by the Probe QA dashboard.
   - `src/doj_doc_explorer/pdf_type/labels.py`: Rerun-safe PDF type labeling utilities (label storage, reconciliation, and rel_path normalization).
+  - `src/doj_doc_explorer/classification/doc_type/features.py`: Numeric, page-sampled features (fonts, images, and thumbnail statistics) used for doc-type ML.
+  - `src/doj_doc_explorer/classification/doc_type/model.py`: Training, saving, and inference helpers for doc-type classification.
   - `src/doj_doc_explorer/utils/paths.py`: Shared helper for normalizing relative paths so labels match inventories across reruns.
 
 - **Tests**

@@ -58,6 +58,9 @@ class ProbeRunConfig:
     skip_text_check: bool = False
     seed: int | None = None
     only_top_folder: str | None = None
+    use_doc_type_model: bool = False
+    doc_type_model_ref: str = ""
+    min_model_confidence: float = 0.70
 
     @property
     def run_args(self) -> dict:

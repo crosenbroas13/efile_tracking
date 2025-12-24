@@ -9,6 +9,10 @@ import pandas as pd
 from src.probe_readiness import evaluate_readiness, list_pdfs
 
 from ..config import ProbeRunConfig, ProbePaths
+from ..classification.doc_type.model import apply_doc_type_decision, load_doc_type_model, predict_doc_types
+from ..classification.doc_type.features import DEFAULT_DPI, DEFAULT_PAGES_SAMPLED, DEFAULT_SEED
+from ..pdf_type.labels import labels_path, load_labels, match_labels_to_inventory
+from ..utils.paths import normalize_rel_path
 from ..utils.io import ensure_dir
 from .outputs import write_probe_outputs
 
@@ -48,6 +52,7 @@ def run_probe(config: ProbeRunConfig) -> Tuple[pd.DataFrame, pd.DataFrame, Dict]
 
     all_errors = text_errors
     runtime = time.time() - start_time
+    docs_df, label_reconciliation = _augment_doc_type_metadata(docs_df, pdfs, config)
     meta = {
         "probe_run_seconds": runtime,
         "error_count": len(all_errors),
@@ -56,6 +61,7 @@ def run_probe(config: ProbeRunConfig) -> Tuple[pd.DataFrame, pd.DataFrame, Dict]
         "ignored_non_pdf_files": ignored_counts,
         "ignored_non_pdf_mime_types": ignored_mime_counts,
         "ignored_non_pdf_total": int(sum(ignored_counts.values())),
+        "label_reconciliation": label_reconciliation,
     }
     return pages_df, docs_df, meta
 
@@ -64,6 +70,70 @@ def run_probe_and_save(config: ProbeRunConfig) -> Path:
     ensure_dir(config.paths.outputs_root)
     pages_df, docs_df, meta = run_probe(config)
     return write_probe_outputs(pages_df, docs_df, config, meta)
+
+
+def _augment_doc_type_metadata(
+    docs_df: pd.DataFrame, pdfs_df: pd.DataFrame, config: ProbeRunConfig
+) -> tuple[pd.DataFrame, Dict[str, int]]:
+    docs_df = docs_df.copy()
+    pdfs_df = pdfs_df.copy()
+    if "rel_path" in pdfs_df.columns:
+        pdfs_df["rel_path"] = pdfs_df["rel_path"].astype(str).map(normalize_rel_path)
+    if "rel_path" in docs_df.columns:
+        docs_df["rel_path"] = docs_df["rel_path"].astype(str).map(normalize_rel_path)
+
+    labels_csv = labels_path(config.paths.outputs_root)
+    labels_df = load_labels(labels_csv, pdfs_df)
+    match_result = match_labels_to_inventory(pdfs_df, labels_df)
+    label_map = (
+        match_result.matched.set_index("rel_path")["label_norm"].astype(str).to_dict()
+        if not match_result.matched.empty
+        else {}
+    )
+    label_reconciliation = {
+        "labels_matched": int(len(match_result.matched)),
+        "labels_orphaned": int(len(match_result.orphaned)),
+        "docs_unlabeled": int(len(match_result.unmatched_inventory)),
+    }
+
+    docs_df["doc_type_truth"] = docs_df["rel_path"].map(label_map).fillna("")
+    heuristic_map = {
+        "Text-based": "TEXT_PDF",
+        "Scanned": "IMAGE_PDF",
+        "Mixed": "MIXED_PDF",
+    }
+    classification_series = (
+        docs_df["classification"] if "classification" in docs_df.columns else pd.Series([""] * len(docs_df), index=docs_df.index)
+    )
+    docs_df["doc_type_heuristic"] = classification_series.map(heuristic_map).fillna("")
+
+    model_artifacts = None
+    if config.use_doc_type_model and config.doc_type_model_ref:
+        model_artifacts = load_doc_type_model(config.doc_type_model_ref, config.paths.outputs_root)
+    if model_artifacts:
+        feature_config = model_artifacts.model_card.get("feature_config", {})
+        predictions = predict_doc_types(
+            pdfs_df=pdfs_df,
+            probe_docs=docs_df,
+            model_artifacts=model_artifacts,
+            pages_sampled=int(feature_config.get("pages_sampled", DEFAULT_PAGES_SAMPLED)),
+            dpi=int(feature_config.get("dpi", DEFAULT_DPI)),
+            seed=int(feature_config.get("seed", DEFAULT_SEED)),
+            reason_features=True,
+        )
+        pred_map = predictions.set_index("rel_path")["predicted_label"].astype(str).to_dict()
+        conf_map = predictions.set_index("rel_path")["confidence"].astype(float).to_dict()
+        reason_map = predictions.set_index("rel_path")["reason_features"].astype(str).to_dict()
+        docs_df["doc_type_model_pred"] = docs_df["rel_path"].map(pred_map).fillna("")
+        docs_df["model_confidence"] = docs_df["rel_path"].map(conf_map)
+        docs_df["reason_features"] = docs_df["rel_path"].map(reason_map).fillna("")
+    else:
+        docs_df["doc_type_model_pred"] = ""
+        docs_df["model_confidence"] = pd.NA
+        docs_df["reason_features"] = ""
+
+    docs_df = apply_doc_type_decision(docs_df, min_confidence=config.min_model_confidence)
+    return docs_df, label_reconciliation
 
 
 __all__ = ["run_probe", "run_probe_and_save"]

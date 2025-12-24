@@ -3,11 +3,12 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List
 
 import pandas as pd
 
 from ..config import ProbeRunConfig, new_run_id
+from ..classification.doc_type.model import DOC_TYPE_LABELS
 from ..utils.git import current_git_commit
 from ..utils.io import ensure_dir, read_json, update_run_index, write_json, write_pointer
 
@@ -81,6 +82,9 @@ def _summarize(docs_df: pd.DataFrame, pages_df: pd.DataFrame, config: ProbeRunCo
         "doc_text_pct_text": config.doc_text_pct_text,
         "doc_text_pct_scanned": config.doc_text_pct_scanned,
     }
+    doc_type_eval = _evaluate_doc_types(docs_df)
+    if doc_type_eval:
+        summary["doc_type_evaluation"] = doc_type_eval
     return summary
 
 
@@ -126,6 +130,10 @@ def write_probe_outputs(
     summary = _summarize(docs_df, pages_df, config, meta)
     summary_path = write_json(run_dir / "probe_summary.json", summary)
 
+    label_reconciliation = meta.get("label_reconciliation") if meta else None
+    if label_reconciliation:
+        write_json(run_dir / "label_reconciliation.json", label_reconciliation)
+
     run_log = {
         "probe_run_id": probe_run_id,
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -163,6 +171,77 @@ def write_probe_outputs(
     )
 
     return run_dir
+
+
+def _evaluate_doc_types(docs_df: pd.DataFrame) -> Dict[str, object]:
+    if "doc_type_truth" not in docs_df.columns:
+        return {}
+    labeled = docs_df.copy()
+    labeled = labeled[labeled["doc_type_truth"].fillna("").astype(str).str.strip() != ""]
+    if labeled.empty:
+        return {}
+
+    eval_payload: Dict[str, object] = {"labeled_docs": int(len(labeled))}
+    eval_payload["heuristic"] = _build_confusion_metrics(labeled, "doc_type_heuristic")
+
+    has_model_preds = (
+        "doc_type_model_pred" in labeled.columns
+        and labeled["doc_type_model_pred"].fillna("").astype(str).str.strip().any()
+    )
+    if has_model_preds:
+        eval_payload["model"] = _build_confusion_metrics(labeled, "doc_type_model_pred")
+
+    eval_payload["top_mismatches"] = {
+        "heuristic": _collect_mismatches(labeled, "doc_type_heuristic"),
+    }
+    if has_model_preds:
+        eval_payload["top_mismatches"]["model"] = _collect_mismatches(
+            labeled, "doc_type_model_pred", confidence_col="model_confidence"
+        )
+    return eval_payload
+
+
+def _build_confusion_metrics(df: pd.DataFrame, pred_col: str) -> Dict[str, object]:
+    truth = df["doc_type_truth"].astype(str)
+    preds = df[pred_col].fillna("").astype(str)
+    labels = [label for label in DOC_TYPE_LABELS if label in set(truth) or label in set(preds)]
+    matrix = pd.crosstab(truth, preds, rownames=["truth"], colnames=["pred"]).reindex(index=labels, columns=labels, fill_value=0)
+    total = int(matrix.to_numpy().sum())
+    correct = int(sum(matrix.loc[label, label] for label in labels if label in matrix.index))
+    per_class = {}
+    for label in labels:
+        denom = int(matrix.loc[label].sum()) if label in matrix.index else 0
+        per_class[label] = (matrix.loc[label, label] / denom) if denom else 0
+    return {
+        "labels": labels,
+        "confusion_matrix": matrix.values.tolist(),
+        "accuracy": (correct / total) if total else 0,
+        "accuracy_per_class": per_class,
+    }
+
+
+def _collect_mismatches(
+    df: pd.DataFrame,
+    pred_col: str,
+    *,
+    confidence_col: str = "",
+    limit: int = 50,
+) -> List[Dict[str, object]]:
+    mismatches = df[df[pred_col].astype(str) != df["doc_type_truth"].astype(str)].copy()
+    if confidence_col and confidence_col in mismatches.columns:
+        mismatches = mismatches.sort_values(confidence_col)
+    records = []
+    for _, row in mismatches.head(limit).iterrows():
+        records.append(
+            {
+                "rel_path": row.get("rel_path"),
+                "truth": row.get("doc_type_truth"),
+                "predicted": row.get(pred_col),
+                "confidence": row.get(confidence_col) if confidence_col else None,
+                "reason_features": row.get("reason_features", ""),
+            }
+        )
+    return records
 
 
 __all__ = ["write_probe_outputs"]
