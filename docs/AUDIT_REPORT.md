@@ -29,7 +29,7 @@
 - Adopt a single package namespace: `src/doj_doc_explorer/` with subpackages for utils, inventory, and probe logic, plus `cli.py` as the canonical interface.
 - Move Streamlit multipage app to `app/` with pages that only read stored outputs; keep thin scripts in `scripts/` that call into the package.
 - Standardize artifacts:
-  - Inventory: `outputs/inventory/<run_id>/inventory.csv`, `inventory_summary.json`, `run_log.json`, and `outputs/inventory/LATEST.json`.
+  - Inventory: `outputs/inventory/<run_id>/inventory.csv`, `inventory_summary.json`, `run_log.json`, and `outputs/inventory/LATEST.json`. Inventory run IDs now incorporate the scanned folder name (sanitized) so download-date roots remain visible in the output path.
   - Probe: `outputs/probes/<run_id>/readiness_pages.parquet|csv`, `readiness_docs.parquet|csv`, `probe_summary.json`, `probe_run_log.json`, plus `outputs/probes/LATEST.json` recording the inventory reference.
 - Provide compatibility loaders that can still read legacy `outputs/inventory.csv` and existing probe folders.
 
