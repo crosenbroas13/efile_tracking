@@ -38,17 +38,17 @@ This toolkit inventories DOJ document drops and runs light-touch probes to estim
 - **Large ZIP visibility**: the inventory now reads ZIP file listings without extracting them. Entries appear as `archive.zip::path/inside/file.pdf`, so you can see what is inside oversized archives without opening them manually.
 
 ## Probe workflow
-- Command: `python -m doj_doc_explorer.cli probe run --inventory <PATH|RUN_ID|LATEST> --out ./outputs [--dpi 72] [--text-threshold 25] [--mostly-black 0.90] [--redaction-dark-ratio-min 0.02] [--redaction-contrast-min 30]`
+- Command: `python -m doj_doc_explorer.cli probe run --inventory <PATH|RUN_ID|LATEST> --out ./outputs [--text-threshold 25]`
 - Outputs (versioned): `outputs/probes/<run_id>/readiness_pages.parquet|csv`, `readiness_docs.parquet|csv`, `probe_summary.json`, `probe_run_log.json`, plus `outputs/probes/LATEST.json` pointing at the latest run and recording the inventory used.
 - **Matching probe run IDs**: probe run folders now start with the same **main folder name** captured from the inventory summary, then the run type and timestamp. This keeps inventory and probe outputs aligned for the same dataset.
 - Legacy compatibility: probes can still read a flat `outputs/inventory.csv` or a specific run folder.
 - ZIP-aware probing: when the inventory lists `archive.zip::path/inside/file.pdf`, the probe extracts **only the PDF entries** into `outputs/probe_extracts/` (or the configured output root) so they can be analyzed without unpacking the full ZIP.
-- **Redaction-like scan (new)**: each page is rendered as an image and checked for **dark pixels, overall brightness, and contrast**. This catches pages that are fully dark *or* show high-contrast black blocks that commonly indicate redaction. It is a quick quality signal for reviewers—it does **not** attempt to remove or reverse redactions.
+- **Redaction checks are paused**: the current probe run focuses on text readiness only. This avoids dependencies on PDF rendering and keeps the metrics limited to signals we can measure directly (text presence, document classification, and page counts).
 
 ## Streamlit QA dashboards
 - Multipage launcher: `streamlit run app/Home.py -- --out ./outputs`. Use `--server.headless true` if you are running on a remote machine and need a URL to connect from your browser.
 - Pages read stored artifacts only; they do not rerun inventories or probes. Point them at `./outputs` to pick up the latest versioned runs via `LATEST.json`.
-- What you see: the Home page lists available inventories and probe runs. The QA pages chart text readiness, **redaction-like ratios**, and basic file counts so stakeholders can understand what is ready for review without installing Python tools themselves. The Document Filter page adds a table-driven view for narrowing to long, low-text, or flagged files, and the Probe Run Comparison page highlights differences between two probe runs so teams can explain what changed over time.
+- What you see: the Home page lists available inventories and probe runs. The QA pages chart text readiness and basic file counts so stakeholders can understand what is ready for review without installing Python tools themselves. The Document Filter page adds a table-driven view for narrowing to long, low-text, or flagged files, and the Probe Run Comparison page highlights differences between two probe runs so teams can explain what changed over time.
 - Data handling: Streamlit reads only from your local `outputs/` folder and never uploads files. You can safely share screenshots or exported charts because the app avoids transmitting underlying documents.
 - Troubleshooting: if Streamlit cannot find data, rerun `python -m doj_doc_explorer.cli self-check` to create expected folders, then rerun an inventory or probe. The CLI will print the exact command needed to launch the dashboards with your chosen output path.
 
@@ -62,11 +62,11 @@ This toolkit inventories DOJ document drops and runs light-touch probes to estim
 - **Encrypted or unreadable PDFs**: they are logged in the run log and skipped; probes continue.
 - **Windows/Mac absolute paths**: the CLI resolves `~` and relative paths; prefer absolute paths if you keep datasets outside the repo.
 - **Missing dependencies**: ensure `pip install -e .` completed; `pyarrow` is used when present for parquet outputs.
-- **Redaction metrics show `n/a` or warnings**: the redaction scan renders PDFs using PyMuPDF (`fitz`) or `pdf2image`. If neither is available, the dashboard will warn and omit redaction ratios until a PDF rendering dependency is installed.
+- **Redaction metrics**: redaction scans are currently disabled, so you will not see redaction ratios or redaction warnings in the dashboards.
 
 ## Safety statement
 - No network calls or telemetry are made.
-- No attempts are made to reverse redactions; probes only record numeric readiness metrics and redaction indicators.
+- No attempts are made to reverse redactions; probes only record numeric readiness metrics.
 - All computations run locally; outputs stay on disk for auditability.
 
 ## Repository file guide
@@ -103,8 +103,8 @@ Use this checklist to understand what lives where. It is written in plain langua
   - `src/git_utils.py`: Utility for capturing the current Git commit hash in run logs.
   - `src/probe_config.py`: Configuration dataclass for probe runs, including thresholds and sampling settings.
   - `src/probe_readiness.py`: Reads PDFs to estimate text readiness, classify documents, and track errors.
-  - `src/probe_blackpages.py`: Renders PDF pages to measure brightness/contrast and flag redaction-like pages that may not need OCR.
-  - `src/probe_runner.py`: Orchestrates readiness and redaction checks, merges results, and collects run metadata.
+  - `src/probe_blackpages.py`: Legacy redaction scanner (currently unused while redaction checks are paused).
+  - `src/probe_runner.py`: Orchestrates readiness checks, merges results, and collects run metadata.
   - `src/probe_outputs.py`: Saves probe outputs (CSV/Parquet plus summaries and logs) to versioned run folders.
   - `src/probe_io.py`: Loads probe runs from disk and lists available runs for dashboard use.
   - `src/probe_viz_helpers.py`: Small formatting and parsing helpers used by the Probe QA dashboard.
@@ -115,5 +115,5 @@ Use this checklist to understand what lives where. It is written in plain langua
   - `tests/test_cli.py`: Checks CLI error handling and verifies inventory outputs are created.
   - `tests/test_inventory.py`: Covers inventory scanning behavior, file ID stability, and summary aggregation.
   - `tests/test_probe_io.py`: Confirms probe run discovery and loading logic for stored probe results.
-  - `tests/test_probes.py`: Exercises PDF classification, darkness metrics, and deterministic document IDs.
+  - `tests/test_probes.py`: Exercises PDF classification and deterministic document IDs.
   - `tests/test_qa_metrics.py`: Verifies categorization, duplicate detection, and issue flagging heuristics for inventory data.

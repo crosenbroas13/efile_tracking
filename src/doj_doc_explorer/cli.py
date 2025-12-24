@@ -31,33 +31,11 @@ def build_parser() -> argparse.ArgumentParser:
     probe_run = probe_sub.add_parser("run", help="Run probe against an inventory")
     probe_run.add_argument("--inventory", default="LATEST", help="Inventory path or run id or LATEST")
     probe_run.add_argument("--out", default=str(DEFAULT_OUTPUT_ROOT), help="Outputs root")
-    probe_run.add_argument("--dpi", type=int, default=72, help="Rendering DPI for redaction scan")
     probe_run.add_argument("--text-threshold", type=int, default=25, help="Characters required to mark text")
     probe_run.add_argument("--doc-text-pct-text", type=float, default=0.90, help="Pct of pages with text to call doc text-based")
     probe_run.add_argument("--doc-text-pct-scanned", type=float, default=0.10, help="Pct of pages with text to call doc scanned")
-    probe_run.add_argument("--mostly-black", type=float, default=0.90, help="Dark pixel ratio for solid-black pages")
-    probe_run.add_argument("--black-intensity", type=int, default=40, help="Grayscale value for black")
-    probe_run.add_argument("--adaptive-percentile", type=float, default=10.0, help="Percentile for adaptive cutoff")
-    probe_run.add_argument("--mostly-black-adapt", type=float, default=0.90, help="Adaptive ratio threshold (legacy)")
-    probe_run.add_argument("--dark-page-median-cutoff", type=float, default=90.0, help="Median grayscale cutoff")
-    probe_run.add_argument(
-        "--redaction-dark-ratio-min", type=float, default=0.02, help="Minimum dark ratio to flag redaction-like pages"
-    )
-    probe_run.add_argument(
-        "--redaction-contrast-min", type=float, default=30.0, help="Minimum contrast (std dev) to flag redaction-like pages"
-    )
-    probe_run.add_argument(
-        "--redaction-low-contrast-max",
-        type=float,
-        default=12.0,
-        help="Maximum contrast (std dev) to flag uniformly dark pages",
-    )
-    probe_run.add_argument("--use-center-crop", action="store_true", default=True, help="Enable center crop")
-    probe_run.add_argument("--no-center-crop", dest="use_center_crop", action="store_false", help="Disable center crop")
-    probe_run.add_argument("--center-crop-pct", type=float, default=0.70, help="Center crop percentage")
     probe_run.add_argument("--max-pdfs", type=int, default=0, help="Limit number of PDFs (0 = all)")
     probe_run.add_argument("--max-pages", type=int, default=0, help="Limit pages per PDF (0 = all)")
-    probe_run.add_argument("--skip-black-check", action="store_true", help="Skip redaction scan")
     probe_run.add_argument("--skip-text-check", action="store_true", help="Skip text readiness check")
     probe_run.add_argument("--seed", type=int, default=None, help="Random seed")
     probe_run.add_argument("--only-top-folder", default=None, help="Filter by top-level folder")
@@ -117,20 +95,8 @@ def run_probe_cmd(args: argparse.Namespace) -> None:
         text_char_threshold=args.text_threshold,
         doc_text_pct_text=args.doc_text_pct_text,
         doc_text_pct_scanned=args.doc_text_pct_scanned,
-        fixed_black_intensity=args.black_intensity,
-        mostly_black_ratio_fixed=args.mostly_black,
-        adaptive_percentile=args.adaptive_percentile,
-        mostly_black_ratio_adapt=args.mostly_black_adapt,
-        dark_page_median_cutoff=args.dark_page_median_cutoff,
-        redaction_dark_ratio_min=args.redaction_dark_ratio_min,
-        redaction_contrast_min=args.redaction_contrast_min,
-        redaction_low_contrast_max=args.redaction_low_contrast_max,
-        render_dpi=args.dpi,
-        center_crop_pct=args.center_crop_pct,
-        use_center_crop=args.use_center_crop,
         max_pdfs=args.max_pdfs,
         max_pages=args.max_pages,
-        skip_black_check=args.skip_black_check,
         skip_text_check=args.skip_text_check,
         seed=args.seed,
         only_top_folder=args.only_top_folder,

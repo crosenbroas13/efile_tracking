@@ -10,7 +10,7 @@
 ## Current data flow
 - Inventory uses `scan_inventory` from `src/inventory.py` to walk the file tree, compute hashes, and return `FileRecord` objects.【F:src/inventory.py†L1-L75】
 - Outputs are written by `src/manifest.py` as `outputs/inventory.csv`, `outputs/inventory_summary.json`, and `outputs/run_log.jsonl`; no versioned folders or LATEST pointers are created.【F:src/manifest.py†L10-L47】【F:src/manifest.py†L55-L71】
-- Probe reads a specific inventory path, lists PDFs, runs readiness/redaction checks, then writes `outputs/probes/<timestamp>/` with parquet/CSV plus summary/log files via `src/probe_outputs.py`. The log records the inventory path but no pointer file is kept.【F:src/probe_runner.py†L1-L71】【F:src/probe_outputs.py†L45-L92】
+- Probe reads a specific inventory path, lists PDFs, runs readiness checks, then writes `outputs/probes/<timestamp>/` with parquet/CSV plus summary/log files via `src/probe_outputs.py`. The log records the inventory path but no pointer file is kept.【F:src/probe_runner.py†L1-L71】【F:src/probe_outputs.py†L45-L92】
 - Streamlit dashboards load artifacts directly from `outputs/` using helpers in `src/io_utils.py` and `src/probe_io.py`, assuming the current flat layout (inventory.csv at root; probe outputs under `outputs/probes/<run_id>`).【F:app/qa_fileimport.py†L10-L41】【F:src/probe_io.py†L32-L62】
 
 ## Structural and naming issues
@@ -41,7 +41,7 @@
 5. Add thin PyCharm scripts in `scripts/run_inventory.py` and `scripts/run_probe.py` that edit two constants and delegate to the package.
 6. Update Streamlit pages to load artifacts through new loaders that handle both legacy flat outputs and versioned layouts.
 7. Rewrite README (and optionally `docs/USAGE.md`) to match the new structure, quickstart, and minimal-input workflows; add troubleshooting and safety notes.
-8. Expand tests to cover legacy/new loaders, LATEST pointers, doc ID determinism, and redaction metrics; update imports to the new namespace.
+8. Expand tests to cover legacy/new loaders, LATEST pointers, and doc ID determinism; update imports to the new namespace.
 9. Ensure `.gitignore` covers `outputs/` and `data/`; add a `self_check` helper under utils.io for quick environment validation.
 
 ## Risks and mitigations

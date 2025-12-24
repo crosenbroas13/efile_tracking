@@ -60,14 +60,6 @@ def _compute_totals(docs_df: pd.DataFrame, pages_df: pd.DataFrame, summary: Dict
         pages_with_text = int(pd.to_numeric(docs_df["pages_with_text"], errors="coerce").fillna(0).sum())
     pages_with_text = pages_with_text or 0
 
-    mostly_black_pages = summary.get("mostly_black_pages")
-    if mostly_black_pages is None and "is_mostly_black" in pages_df.columns:
-        mostly_black_pages = int(pages_df[pages_df["is_mostly_black"] == True].shape[0])  # noqa: E712
-    mostly_black_pages = mostly_black_pages or 0
-    black_pages_checked = 0
-    if "is_mostly_black" in pages_df.columns:
-        black_pages_checked = int(pages_df["is_mostly_black"].notna().sum())
-
     baseline_ocr = summary.get("estimated_ocr_pages_baseline")
     if baseline_ocr is None:
         baseline_ocr = max(total_pages - pages_with_text, 0)
@@ -75,13 +67,9 @@ def _compute_totals(docs_df: pd.DataFrame, pages_df: pd.DataFrame, summary: Dict
     totals.update(
         {
             "classification_counts": summary.get("classification_counts", {}),
-            "mostly_black_pages": mostly_black_pages,
-            "mostly_black_pct": safe_pct(mostly_black_pages, black_pages_checked),
-            "black_pages_checked": black_pages_checked,
             "pages_with_text": pages_with_text,
             "pages_without_text": max(total_pages - pages_with_text, 0),
             "estimated_ocr_pages_baseline": baseline_ocr,
-            "estimated_ocr_pages_adjusted": summary.get("estimated_ocr_pages_adjusted", baseline_ocr),
             "ignored_non_pdf_files": summary.get("ignored_non_pdf_files", {}),
             "ignored_non_pdf_mime_types": summary.get("ignored_non_pdf_mime_types", {}),
             "ignored_non_pdf_total": summary.get("ignored_non_pdf_total", 0),
@@ -99,13 +87,11 @@ def _classification_breakdown(docs_df: pd.DataFrame, summary: Dict) -> Dict[str,
     return {}
 
 
-def _apply_issue_filter(df: pd.DataFrame, show_only_issues: bool, black_threshold: float) -> pd.DataFrame:
+def _apply_issue_filter(df: pd.DataFrame, show_only_issues: bool) -> pd.DataFrame:
     if not show_only_issues:
         return df
     if df.empty:
         return df
-    if "classification" in df.columns and "mostly_black_pct" in df.columns:
-        return df[(df["classification"] != "Text-based") | (df["mostly_black_pct"] >= black_threshold)]
     if "classification" in df.columns:
         return df[df["classification"] != "Text-based"]
     return df
@@ -117,12 +103,6 @@ def _downloadable_table(df: pd.DataFrame, label: str):
         df.to_csv(index=False).encode("utf-8"),
         file_name=f"{label.replace(' ', '_').lower()}.csv",
     )
-
-
-def _format_pct_or_na(value: float | None) -> str:
-    if value is None or pd.isna(value):
-        return "n/a"
-    return format_pct(float(value))
 
 
 # Page rendering
@@ -153,67 +133,41 @@ def main():
     summary = selected_run.get("summary", {})
     thresholds = summary.get("thresholds", {})
     text_threshold_default = int(thresholds.get("text_char_threshold", 25))
-    black_ratio_default = float(thresholds.get("mostly_black_ratio", 0.9))
-
     with pick_cols[2]:
         st.markdown("**Display options**")
-        show_mostly_black = st.checkbox("Redaction-like pages", value=False)
-        exclude_black_from_ocr = st.checkbox("Skip redaction-like in OCR", value=True)
         show_only_issues = st.checkbox("Only issues", value=False)
 
     slider_cols = st.columns(2)
     text_char_threshold_display = slider_cols[0].slider(
         "Text character threshold (display only)", min_value=0, max_value=500, value=text_threshold_default, step=5
     )
-    mostly_black_ratio_display = slider_cols[1].slider(
-        "Redaction dark ratio (display only)", min_value=0.0, max_value=1.0, value=black_ratio_default, step=0.05
-    )
+    slider_cols[1].info("Redaction metrics are disabled for now.")
 
     docs_df, pages_df, summary, run_log = cached_load_probe_run(out_dir_text, selected_run["probe_run_id"])
     totals = _compute_totals(docs_df, pages_df, summary)
-
-    adjusted_ocr = totals.get("estimated_ocr_pages_adjusted", totals.get("estimated_ocr_pages_baseline", 0))
-    if not exclude_black_from_ocr:
-        adjusted_ocr = totals.get("estimated_ocr_pages_baseline", adjusted_ocr)
 
     st.subheader("Executive summary")
     metrics = st.columns(4)
     metrics[0].metric("PDFs processed", f"{totals['total_pdfs']:,}")
     metrics[1].metric("Pages processed", f"{totals['total_pages']:,}")
     metrics[2].metric(
-        "Redaction-like pages",
-        f"{totals.get('mostly_black_pages', 0):,}",
-        format_pct(float(totals.get("mostly_black_pct", 0))),
-    )
-    metrics[3].metric(
         "Baseline OCR pages",
         f"{totals.get('estimated_ocr_pages_baseline', 0):,}",
         format_pct(safe_pct(totals.get("estimated_ocr_pages_baseline", 0), totals.get("total_pages", 0))),
     )
+    metrics[3].metric("Ignored non-PDF artifacts", f"{(totals.get('ignored_non_pdf_total') or 0):,}")
 
     metrics2 = st.columns(4)
-    metrics2[0].metric(
-        "Adjusted OCR pages",
-        f"{adjusted_ocr:,}",
-        format_pct(safe_pct(adjusted_ocr, totals.get("total_pages", 0))),
-    )
     classification = _classification_breakdown(docs_df, summary)
     cls_text = " | ".join([f"{k}: {v}" for k, v in classification.items()]) if classification else "Unavailable"
-    metrics2[1].metric("Doc classifications", cls_text)
-    black_pages_checked = totals.get("black_pages_checked", 0)
+    metrics2[0].metric("Doc classifications", cls_text)
+    metrics2[1].metric("Pages with text", f"{totals.get('pages_with_text', 0):,}")
     metrics2[2].metric(
-        "Pages checked for redaction",
-        f"{black_pages_checked:,}",
-        format_pct(safe_pct(black_pages_checked, totals.get("total_pages", 0))),
+        "Pages without text",
+        f"{totals.get('pages_without_text', 0):,}",
+        format_pct(safe_pct(totals.get("pages_without_text", 0), totals.get("total_pages", 0))),
     )
-    ignored_total = totals.get("ignored_non_pdf_total") or summary.get("ignored_non_pdf_total") or 0
-    metrics2[3].metric("Ignored non-PDF artifacts", f"{ignored_total:,}")
-    if totals.get("total_pages") and totals.get("black_pages_checked", 0) == 0:
-        st.warning(
-            "Redaction scan metrics were not calculated for this run. "
-            "This usually happens when the PDF rendering dependency is missing, "
-            "so the probe could not analyze page pixels."
-        )
+    metrics2[3].metric("Ignored non-PDF artifacts", f"{(totals.get('ignored_non_pdf_total') or 0):,}")
 
     if totals.get("ignored_non_pdf_files"):
         st.markdown("#### Ignored non-PDF artifacts (by extension)")
@@ -234,12 +188,11 @@ def main():
         chart_cols[0].plotly_chart(fig, use_container_width=True)
     else:
         chart_cols[0].info("No text coverage data available.")
-
-    if "mostly_black_pct" in docs_df.columns and not docs_df.empty:
-        fig_black = px.histogram(docs_df, x="mostly_black_pct", nbins=20, title="Document redaction dark ratio")
-        chart_cols[1].plotly_chart(fig_black, use_container_width=True)
+    if "page_count" in docs_df.columns and not docs_df.empty:
+        fig_pages = px.histogram(docs_df, x="page_count", nbins=20, title="Document page counts")
+        chart_cols[1].plotly_chart(fig_pages, use_container_width=True)
     else:
-        chart_cols[1].info("No redaction ratios available.")
+        chart_cols[1].info("No page count data available.")
 
     chart_cols2 = st.columns(2)
     if "classification" in docs_df.columns:
@@ -251,21 +204,14 @@ def main():
         chart_cols2[0].info("No classification column available.")
 
     if "top_level_folder" in pages_df.columns:
-        pages_with_black = pages_df.copy()
-        if "is_mostly_black" in pages_with_black.columns:
-            pages_with_black["mostly_black"] = pages_with_black["is_mostly_black"].fillna(False)
-        else:
-            pages_with_black["mostly_black"] = False
-        folder_counts = pages_with_black.groupby("top_level_folder").agg(
+        folder_counts = pages_df.groupby("top_level_folder").agg(
             pages=("page_num", "count"),
-            mostly_black_pages=("mostly_black", "sum"),
         )
         folder_counts = folder_counts.reset_index().sort_values("pages", ascending=False)
         fig_folder = px.bar(
             folder_counts,
             x="top_level_folder",
-            y=["pages", "mostly_black_pages"],
-            barmode="group",
+            y=["pages"],
             title="Pages by top-level folder",
         )
         chart_cols2[1].plotly_chart(fig_folder, use_container_width=True)
@@ -278,7 +224,6 @@ def main():
 
     def _prep_docs(df: pd.DataFrame) -> pd.DataFrame:
         base = df.copy()
-        base["mostly_black_pct"] = pd.to_numeric(safe_series(base, "mostly_black_pct", None), errors="coerce")
         base["text_coverage_pct"] = pd.to_numeric(safe_series(base, "text_coverage_pct", 0), errors="coerce").fillna(0)
         base["page_count"] = pd.to_numeric(safe_series(base, "page_count", 0), errors="coerce").fillna(0)
         base["classification"] = safe_series(base, "classification", "Unknown")
@@ -286,10 +231,10 @@ def main():
         base["rel_path"] = safe_series(base, "rel_path", "")
         return base
 
-    docs_ready = _prep_docs(_apply_issue_filter(docs_df, show_only_issues, mostly_black_ratio_display))
+    docs_ready = _prep_docs(_apply_issue_filter(docs_df, show_only_issues))
 
     best_candidates = docs_ready.sort_values(
-        ["text_coverage_pct", "mostly_black_pct"], ascending=[False, True]
+        ["text_coverage_pct", "page_count"], ascending=[False, False]
     ).head(top_n)
     st.markdown("#### Best candidates for fast extraction")
     st.dataframe(best_candidates[[
@@ -298,7 +243,6 @@ def main():
         "rel_path",
         "page_count",
         "text_coverage_pct",
-        "mostly_black_pct",
         "classification",
     ]], use_container_width=True)
     _downloadable_table(best_candidates, "best_candidates")
@@ -313,29 +257,23 @@ def main():
         "rel_path",
         "page_count",
         "text_coverage_pct",
-        "mostly_black_pct",
         "classification",
     ]], use_container_width=True)
     _downloadable_table(worst_candidates, "worst_candidates")
-
-    if "mostly_black_pct" in docs_ready.columns:
-        most_redacted = docs_ready.sort_values("mostly_black_pct", ascending=False).head(top_n)
+    st.markdown("#### Most text-ready (highest text coverage)")
+    most_text_ready = docs_ready.sort_values("text_coverage_pct", ascending=False).head(top_n)
+    if most_text_ready.empty:
+        st.info("No text coverage data available for this run.")
     else:
-        most_redacted = pd.DataFrame()
-    st.markdown("#### Most redacted / dark-heavy")
-    if most_redacted.empty:
-        st.info("No redaction ratios available for this run.")
-    else:
-        st.dataframe(most_redacted[[
+        st.dataframe(most_text_ready[[
             "doc_id",
             "top_level_folder",
             "rel_path",
             "page_count",
             "text_coverage_pct",
-            "mostly_black_pct",
             "classification",
         ]], use_container_width=True)
-        _downloadable_table(most_redacted, "most_redacted")
+        _downloadable_table(most_text_ready, "most_text_ready")
 
     st.divider()
     st.subheader("Page-level drilldown")
@@ -352,7 +290,7 @@ def main():
         doc_info_cols = st.columns(3)
         doc_info_cols[0].metric("Pages", int(doc_row.get("page_count", 0)))
         doc_info_cols[1].metric("Text coverage", format_pct(float(doc_row.get("text_coverage_pct", 0))))
-        doc_info_cols[2].metric("Redaction-like", _format_pct_or_na(doc_row.get("mostly_black_pct")))
+        doc_info_cols[2].metric("Classification", str(doc_row.get("classification", "Unknown")))
 
         if "doc_id" not in pages_df.columns:
             st.warning(
@@ -366,27 +304,17 @@ def main():
             st.warning("No page-level data available for this document.")
         else:
             doc_pages["has_text_display"] = doc_pages.get("text_char_count", 0) >= text_char_threshold_display
-            if "black_ratio" in doc_pages.columns:
-                doc_pages["is_mostly_black_display"] = doc_pages["black_ratio"] >= mostly_black_ratio_display
-            else:
-                doc_pages["is_mostly_black_display"] = False
-
-            col_filters = st.columns(3)
+            col_filters = st.columns(2)
             only_no_text = col_filters[0].checkbox("Only pages without text", value=False)
-            only_black = col_filters[1].checkbox("Only redaction-like", value=show_mostly_black)
-            needs_ocr = col_filters[2].checkbox("Only pages needing OCR", value=False)
+            needs_ocr = col_filters[1].checkbox("Only pages needing OCR", value=False)
 
             filtered_pages = doc_pages.copy()
             if only_no_text:
                 filtered_pages = filtered_pages[filtered_pages["has_text_display"] == False]  # noqa: E712
-            if only_black:
-                filtered_pages = filtered_pages[filtered_pages["is_mostly_black_display"] == True]  # noqa: E712
             if needs_ocr and "has_text" in filtered_pages.columns:
-                filtered_pages = filtered_pages[(filtered_pages["has_text"] == False) | (filtered_pages["is_mostly_black_display"] == True)]  # noqa: E712
+                filtered_pages = filtered_pages[filtered_pages["has_text"] == False]  # noqa: E712
 
-            display_cols = ["page_num", "has_text", "text_char_count", "is_mostly_black"]
-            if "black_ratio" in filtered_pages.columns:
-                display_cols.insert(3, "black_ratio")
+            display_cols = ["page_num", "has_text", "text_char_count"]
             st.dataframe(filtered_pages[display_cols], use_container_width=True)
 
     st.divider()

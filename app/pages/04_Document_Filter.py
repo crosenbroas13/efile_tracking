@@ -163,7 +163,7 @@ def main():
     st.markdown("### Filters")
     st.caption("Adjust these sliders and selectors to focus on the documents you want to review first.")
 
-    filter_cols = st.columns(4)
+    filter_cols = st.columns(3)
     page_counts = _numeric_series(merged_df, "page_count", 0)
     page_range = _safe_min_max(page_counts)
     if page_range:
@@ -202,19 +202,6 @@ def main():
         default=classifications,
     )
 
-    black_coverage = _numeric_series(merged_df, "mostly_black_pct", 0.0)
-    black_range = _safe_min_max(black_coverage)
-    if black_range:
-        black_min, black_max = filter_cols[3].slider(
-            "Redaction-like coverage (%)",
-            min_value=0.0,
-            max_value=1.0,
-            value=(float(black_range[0]), float(black_range[1])),
-            step=0.05,
-        )
-    else:
-        black_min, black_max = None, None
-        filter_cols[3].info("No redaction ratios available.")
 
     inv_cols = st.columns(3)
     size_series = _numeric_series(merged_df, "size_mb")
@@ -255,8 +242,6 @@ def main():
         filtered_df = filtered_df[(text_coverage >= text_min) & (text_coverage <= text_max)]
     if selected_classes:
         filtered_df = filtered_df[filtered_df["classification"].fillna("Unknown").isin(selected_classes)]
-    if black_min is not None:
-        filtered_df = filtered_df[(black_coverage >= black_min) & (black_coverage <= black_max)]
     if size_min is not None:
         filtered_df = filtered_df[(size_series >= size_min) & (size_series <= size_max)]
     if selected_extensions:
@@ -286,7 +271,6 @@ def main():
             "page_count",
             "text_coverage_pct",
             "classification",
-            "mostly_black_pct",
             "size_mb",
             "extension",
             "detected_mime",
@@ -303,8 +287,6 @@ def main():
     display_df = filtered_df[selected_columns].copy() if selected_columns else filtered_df.copy()
     if "text_coverage_pct" in display_df.columns:
         display_df["text_coverage_pct"] = (pd.to_numeric(display_df["text_coverage_pct"], errors="coerce") * 100).round(1)
-    if "mostly_black_pct" in display_df.columns:
-        display_df["mostly_black_pct"] = (pd.to_numeric(display_df["mostly_black_pct"], errors="coerce") * 100).round(1)
 
     st.dataframe(display_df, use_container_width=True)
     st.caption("Percent columns are shown as percentages (0-100).")
