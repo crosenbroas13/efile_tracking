@@ -114,11 +114,15 @@ def self_check(base: Path = DEFAULT_OUTPUT_ROOT) -> Dict[str, Any]:
     inventory_dir = ensure_dir(outputs / "inventory")
     probe_dir = ensure_dir(outputs / "probes")
     labels_dir = ensure_dir(outputs / "labels")
+    models_dir = ensure_dir(outputs / "models" / "doc_type")
+    classification_dir = ensure_dir(outputs / "classification" / "doc_type")
     return {
         "outputs": str(outputs.resolve()),
         "inventory_dir": str(inventory_dir.resolve()),
         "probe_dir": str(probe_dir.resolve()),
         "labels_dir": str(labels_dir.resolve()),
+        "models_dir": str(models_dir.resolve()),
+        "classification_dir": str(classification_dir.resolve()),
         "inventory_pointer": str((inventory_dir / "LATEST.json").resolve()),
         "probe_pointer": str((probe_dir / "LATEST.json").resolve()),
     }

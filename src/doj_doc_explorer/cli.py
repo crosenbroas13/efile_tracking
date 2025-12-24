@@ -12,8 +12,15 @@ import pandas as pd
 from .config import DEFAULT_OUTPUT_ROOT, InventoryConfig, ProbePaths, ProbeRunConfig
 from .inventory.runner import InventoryRunner
 from .probe.runner import run_probe_and_save
-from .utils.io import latest_inventory, latest_probe, load_table, self_check, write_json
+from .utils.io import ensure_dir, latest_inventory, latest_probe, load_table, read_json, self_check, write_json
 from .utils.paths import normalize_rel_path
+from .classification.doc_type.features import DEFAULT_DPI, DEFAULT_PAGES_SAMPLED, DEFAULT_SEED
+from .classification.doc_type.model import (
+    load_doc_type_model,
+    predict_doc_types,
+    resolve_doc_type_model_path,
+    train_doc_type_model,
+)
 from .pdf_type.labels import (
     LABEL_VALUES,
     filter_pdf_inventory,
@@ -28,7 +35,7 @@ from .pdf_type.labels import (
     write_labels,
 )
 
-from src.probe_readiness import stable_doc_id
+from src.probe_readiness import list_pdfs, stable_doc_id
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -71,6 +78,20 @@ def build_parser() -> argparse.ArgumentParser:
     probe_run.add_argument("--skip-text-check", action="store_true", help="Skip text readiness check")
     probe_run.add_argument("--seed", type=int, default=None, help="Random seed")
     probe_run.add_argument("--only-top-folder", default=None, help="Filter by top-level folder")
+    probe_run.add_argument(
+        "--use-doc-type-model",
+        dest="use_doc_type_model",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Use the doc-type model when available",
+    )
+    probe_run.add_argument("--model", default="LATEST", help="Doc-type model reference (LATEST, path, or model id)")
+    probe_run.add_argument(
+        "--min-model-confidence",
+        type=float,
+        default=0.70,
+        help="Minimum confidence to trust doc-type model predictions",
+    )
     probe_run.set_defaults(func=run_probe_cmd)
 
     qa = subparsers.add_parser("qa", help="QA helpers")
@@ -118,6 +139,37 @@ def build_parser() -> argparse.ArgumentParser:
     pdf_migrate.add_argument("--dry-run", action="store_true", help="Preview changes without writing")
     pdf_migrate.set_defaults(func=run_pdf_type_migrate_cmd)
 
+    doc_type = subparsers.add_parser("doc_type", help="Doc-type model training and inference")
+    doc_type_sub = doc_type.add_subparsers(dest="subcommand")
+
+    doc_train = doc_type_sub.add_parser("train", help="Train a doc-type classifier from labels")
+    doc_train.add_argument("--inventory", default="LATEST", help="Inventory path or run id or LATEST")
+    doc_train.add_argument("--probe", default="LATEST", help="Probe run id, path, or LATEST")
+    doc_train.add_argument("--labels", default=str(labels_path(DEFAULT_OUTPUT_ROOT)), help="Labels CSV path")
+    doc_train.add_argument("--out", default=str(DEFAULT_OUTPUT_ROOT), help="Outputs root")
+    doc_train.add_argument("--pages-sampled", type=int, default=DEFAULT_PAGES_SAMPLED, help="Pages sampled per PDF")
+    doc_train.add_argument("--dpi", type=int, default=DEFAULT_DPI, help="Render DPI for thumbnails")
+    doc_train.add_argument("--seed", type=int, default=DEFAULT_SEED, help="Deterministic sampling seed")
+    doc_train.add_argument("--eval-split", type=float, default=0.2, help="Eval split fraction")
+    doc_train.set_defaults(func=run_doc_type_train_cmd)
+
+    doc_predict = doc_type_sub.add_parser("predict", help="Predict doc types for selected docs")
+    doc_predict.add_argument("--inventory", default="LATEST", help="Inventory path or run id or LATEST")
+    doc_predict.add_argument("--probe", default="LATEST", help="Probe run id, path, or LATEST")
+    doc_predict.add_argument("--model", default="LATEST", help="Doc-type model reference (LATEST, path, or model id)")
+    doc_predict.add_argument("--selection", default="", help="Optional CSV with rel_path or doc_id to score")
+    doc_predict.add_argument("--out", default=str(DEFAULT_OUTPUT_ROOT), help="Outputs root")
+    doc_predict.add_argument("--only-unlabeled", action="store_true", help="Predict only unlabeled docs")
+    doc_predict.set_defaults(func=run_doc_type_predict_cmd)
+
+    doc_queue = doc_type_sub.add_parser("queue", help="Queue low-confidence docs for labeling")
+    doc_queue.add_argument("--inventory", default="LATEST", help="Inventory path or run id or LATEST")
+    doc_queue.add_argument("--probe", default="LATEST", help="Probe run id, path, or LATEST")
+    doc_queue.add_argument("--model", default="LATEST", help="Doc-type model reference (LATEST, path, or model id)")
+    doc_queue.add_argument("--k", type=int, default=200, help="Number of docs to queue")
+    doc_queue.add_argument("--out", default=str(DEFAULT_OUTPUT_ROOT), help="Outputs root")
+    doc_queue.set_defaults(func=run_doc_type_queue_cmd)
+
     return parser
 
 
@@ -158,6 +210,12 @@ def resolve_inventory_path(value: str, outputs_root: Path) -> Path:
 def run_probe_cmd(args: argparse.Namespace) -> None:
     outputs_root = Path(args.out)
     inventory_path = resolve_inventory_path(args.inventory, outputs_root)
+    model_path = resolve_doc_type_model_path(args.model, outputs_root)
+    use_doc_type_model = args.use_doc_type_model
+    if use_doc_type_model is None:
+        use_doc_type_model = model_path is not None
+    if not use_doc_type_model:
+        model_path = None
     config = ProbeRunConfig(
         paths=ProbePaths(inventory=inventory_path, outputs_root=outputs_root),
         text_char_threshold=args.text_threshold,
@@ -169,6 +227,9 @@ def run_probe_cmd(args: argparse.Namespace) -> None:
         skip_text_check=args.skip_text_check,
         seed=args.seed,
         only_top_folder=args.only_top_folder,
+        use_doc_type_model=use_doc_type_model,
+        doc_type_model_ref=args.model if model_path else "",
+        min_model_confidence=args.min_model_confidence,
     )
     run_dir = run_probe_and_save(config)
     print("Probe run complete")
@@ -370,6 +431,124 @@ def run_pdf_type_predict_cmd(args: argparse.Namespace) -> None:
     print(f"Wrote predictions for {len(output_df)} unlabeled PDFs to {output_path}")
 
 
+def run_doc_type_train_cmd(args: argparse.Namespace) -> None:
+    outputs_root = Path(args.out)
+    inventory_path = resolve_inventory_path(args.inventory, outputs_root)
+    labels_csv = Path(args.labels)
+    artifacts, eval_payload = train_doc_type_model(
+        inventory_path=inventory_path,
+        probe_ref=args.probe,
+        labels_csv=labels_csv,
+        outputs_root=outputs_root,
+        pages_sampled=args.pages_sampled,
+        dpi=args.dpi,
+        seed=args.seed,
+        eval_split=args.eval_split,
+    )
+    print("Doc-type model training complete")
+    print(f"Model dir: {artifacts.model_dir}")
+    label_reconciliation = artifacts.model_card.get("label_reconciliation", {})
+    if label_reconciliation:
+        print(
+            "Label reconciliation:",
+            f"matched={label_reconciliation.get('labels_matched')}",
+            f"orphaned={label_reconciliation.get('labels_orphaned')}",
+            f"unlabeled={label_reconciliation.get('docs_unlabeled')}",
+        )
+    if eval_payload.get("confusion_matrix") is not None:
+        print("Confusion matrix (eval split):")
+        print(pd.DataFrame(eval_payload.get("confusion_matrix", []), index=eval_payload.get("labels", [])))
+    if eval_payload.get("classification_report"):
+        print("Per-class precision/recall (eval split):")
+        report = pd.DataFrame(eval_payload["classification_report"]).transpose()
+        print(report[["precision", "recall", "f1-score", "support"]])
+
+
+def run_doc_type_predict_cmd(args: argparse.Namespace) -> None:
+    outputs_root = Path(args.out)
+    inventory_path = resolve_inventory_path(args.inventory, outputs_root)
+    pdfs_df, _, _ = list_pdfs(inventory_path, extract_root=outputs_root)
+    pdfs_df["rel_path"] = pdfs_df["rel_path"].astype(str).map(normalize_rel_path)
+
+    model_artifacts = load_doc_type_model(args.model, outputs_root)
+    if not model_artifacts:
+        raise SystemExit("Doc-type model not found. Train a model first.")
+
+    labels_df = load_labels(labels_path(outputs_root), pdfs_df)
+    match_result = match_labels_to_inventory(pdfs_df, labels_df)
+    labeled_paths = set(match_result.matched["rel_path"].astype(str)) if not match_result.matched.empty else set()
+
+    selection_df = _load_selection_csv(args.selection)
+    if selection_df is not None:
+        pdfs_df = _apply_selection(pdfs_df, selection_df)
+
+    if args.only_unlabeled:
+        pdfs_df = pdfs_df[~pdfs_df["rel_path"].isin(labeled_paths)].copy()
+
+    if pdfs_df.empty:
+        print("No PDFs matched the selection criteria.")
+        return
+
+    probe_docs, _ = _load_probe_docs(args.probe, outputs_root)
+    feature_config = model_artifacts.model_card.get("feature_config", {})
+    predictions = predict_doc_types(
+        pdfs_df=pdfs_df,
+        probe_docs=probe_docs,
+        model_artifacts=model_artifacts,
+        pages_sampled=int(feature_config.get("pages_sampled", DEFAULT_PAGES_SAMPLED)),
+        dpi=int(feature_config.get("dpi", DEFAULT_DPI)),
+        seed=int(feature_config.get("seed", DEFAULT_SEED)),
+        reason_features=True,
+    )
+
+    run_id = new_run_id("doc_type_predict", label=_infer_inventory_label(inventory_path))
+    run_dir = ensure_dir(outputs_root / "classification" / "doc_type" / run_id)
+    output_path = run_dir / "doc_type_predictions.csv"
+    predictions.to_csv(output_path, index=False)
+    print(f"Wrote predictions for {len(predictions)} PDFs to {output_path}")
+
+
+def run_doc_type_queue_cmd(args: argparse.Namespace) -> None:
+    outputs_root = Path(args.out)
+    inventory_path = resolve_inventory_path(args.inventory, outputs_root)
+    pdfs_df, _, _ = list_pdfs(inventory_path, extract_root=outputs_root)
+    pdfs_df["rel_path"] = pdfs_df["rel_path"].astype(str).map(normalize_rel_path)
+
+    model_artifacts = load_doc_type_model(args.model, outputs_root)
+    if not model_artifacts:
+        raise SystemExit("Doc-type model not found. Train a model first.")
+
+    labels_df = load_labels(labels_path(outputs_root), pdfs_df)
+    match_result = match_labels_to_inventory(pdfs_df, labels_df)
+    unlabeled_df = match_result.unmatched_inventory.copy()
+    if unlabeled_df.empty:
+        print("All PDFs already labeled. No queue generated.")
+        return
+
+    probe_docs, _ = _load_probe_docs(args.probe, outputs_root)
+    feature_config = model_artifacts.model_card.get("feature_config", {})
+    predictions = predict_doc_types(
+        pdfs_df=unlabeled_df,
+        probe_docs=probe_docs,
+        model_artifacts=model_artifacts,
+        pages_sampled=int(feature_config.get("pages_sampled", DEFAULT_PAGES_SAMPLED)),
+        dpi=int(feature_config.get("dpi", DEFAULT_DPI)),
+        seed=int(feature_config.get("seed", DEFAULT_SEED)),
+        reason_features=False,
+    )
+    if predictions.empty:
+        print("No predictions available for queue.")
+        return
+
+    queue_df = _select_low_confidence(predictions, args.k)
+    queue_df = queue_df[["rel_path", "predicted_label", "confidence"]].rename(
+        columns={"predicted_label": "suggested_label"}
+    )
+    queue_path = ensure_dir(outputs_root / "labels") / "label_queue.csv"
+    queue_df.to_csv(queue_path, index=False)
+    print(f"Wrote label queue with {len(queue_df)} docs to {queue_path}")
+
+
 def run_pdf_type_migrate_cmd(args: argparse.Namespace) -> None:
     outputs_root = Path(args.out)
     inventory_path = resolve_inventory_path(args.inventory, outputs_root)
@@ -438,6 +617,56 @@ def run_self_check(args: argparse.Namespace) -> None:
     print("Prepared folders:")
     for key, value in info.items():
         print(f"- {key}: {value}")
+
+
+def _infer_inventory_label(inventory_path: Path) -> str | None:
+    summary = read_json(inventory_path.with_name("inventory_summary.json"))
+    return summary.get("source_root_name") if summary else None
+
+
+def _load_selection_csv(path_value: str) -> pd.DataFrame | None:
+    if not path_value:
+        return None
+    selection_path = Path(path_value)
+    if not selection_path.exists():
+        raise SystemExit(f"Selection CSV not found: {selection_path}")
+    selection_df = pd.read_csv(selection_path)
+    if "rel_path" in selection_df.columns:
+        selection_df["rel_path"] = selection_df["rel_path"].astype(str).map(normalize_rel_path)
+    return selection_df
+
+
+def _apply_selection(pdfs_df: pd.DataFrame, selection_df: pd.DataFrame) -> pd.DataFrame:
+    if "rel_path" in selection_df.columns:
+        selection_paths = set(selection_df["rel_path"].dropna().astype(str))
+        return pdfs_df[pdfs_df["rel_path"].isin(selection_paths)].copy()
+    if "doc_id" in selection_df.columns:
+        selection_ids = set(selection_df["doc_id"].dropna().astype(str))
+        return pdfs_df[pdfs_df["doc_id"].astype(str).isin(selection_ids)].copy()
+    raise SystemExit("Selection CSV must include rel_path or doc_id column.")
+
+
+def _select_low_confidence(predictions: pd.DataFrame, k: int) -> pd.DataFrame:
+    if predictions.empty or k <= 0:
+        return predictions.head(0)
+    if "top_level_folder" not in predictions.columns:
+        return predictions.sort_values("confidence").head(k)
+    grouped = {
+        folder: group.sort_values("confidence").reset_index(drop=True)
+        for folder, group in predictions.groupby("top_level_folder", dropna=False)
+    }
+    selected_rows = []
+    while grouped and len(selected_rows) < k:
+        for folder in list(grouped.keys()):
+            group = grouped[folder]
+            if group.empty:
+                grouped.pop(folder, None)
+                continue
+            selected_rows.append(group.iloc[0])
+            grouped[folder] = group.iloc[1:].reset_index(drop=True)
+            if len(selected_rows) >= k:
+                break
+    return pd.DataFrame(selected_rows)
 
 
 def _compute_doc_id_from_row(row: pd.Series) -> str:
