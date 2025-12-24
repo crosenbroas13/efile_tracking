@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import csv
 import json
+from datetime import datetime, timezone
 from dataclasses import asdict
 from pathlib import Path
 from typing import Dict, List, Optional
 
 from ..config import InventoryConfig, new_run_id
 from ..utils.git import current_git_commit
-from ..utils.io import ensure_dir, write_json, write_pointer
+from ..utils.io import ensure_dir, update_run_index, write_json, write_pointer
 from .summarize import build_summary
 from .scan import FileRecord
 
@@ -62,6 +63,7 @@ def write_inventory_run(
         "inventory_run_id": run_id,
         "root": str(config.root),
         "source_root_name": root_name,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "args": {
             "hash": config.hash_algorithm,
             "sample_bytes": config.sample_bytes,
@@ -87,6 +89,19 @@ def write_inventory_run(
         "source_root_name": root_name,
     }
     write_pointer(inventory_root, INVENTORY_POINTER, pointer_payload)
+    update_run_index(
+        Path(config.out_dir),
+        source_root=config.root.resolve(),
+        source_root_name=root_name,
+        inventory={
+            "run_id": run_id,
+            "run_dir": str(Path("inventory") / run_id),
+            "inventory_csv": str(Path("inventory") / run_id / "inventory.csv"),
+            "summary": str(Path("inventory") / run_id / "inventory_summary.json"),
+            "run_log": str(Path("inventory") / run_id / "run_log.json"),
+            "timestamp": log_entry["timestamp"],
+        },
+    )
 
     # Backward compatibility: keep flat files up to date
     csv_copy = Path(config.out_dir) / "inventory.csv"

@@ -59,6 +59,7 @@ This toolkit inventories DOJ document drops and runs light-touch probes to estim
 ## Outputs and versioning
 - `outputs/inventory/`: versioned inventory runs plus `LATEST.json`.
 - `outputs/probes/`: versioned probe runs plus `LATEST.json` referencing the inventory path.
+- `outputs/run_index.json`: a **centralized “latest run” index** keyed by the original dataset folder you scanned. Each entry records the most recent inventory **and** probe run for that dataset so repeated runs update one place without overwriting history.
 - `outputs/inventory.csv` and `outputs/inventory_summary.json` remain for older tooling; new code prefers versioned folders.
 
 ## Troubleshooting
