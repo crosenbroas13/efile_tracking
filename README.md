@@ -57,6 +57,7 @@ Use this workflow when you need a human-reviewed PDF type label that stays valid
 - **Orphan handling**: if a file disappears in a new inventory, the label is kept but marked as *orphaned* in memory. It will not be used for training or prediction until the file returns, so nothing is silently lost.
 - **Safety for reruns**: every labeling, training, and prediction run writes a reconciliation report to `outputs/labels/label_reconciliation_<timestamp>.json`, so non-technical reviewers can see how many labels still match the latest inventory.
 - **Friendly labeling UI**: the Streamlit **PDF Labeling** page lets reviewers choose a PDF, apply a label, and save it to the master file without using the command line. This is the easiest path for non-technical reviewers who just need a guided form.
+- **Built-in browsing helpers**: the labeling page now includes **search**, **folder-based browsing**, and **sort order** controls so reviewers can quickly locate the next PDF to label without scrolling through long lists.
 - **Short-document focus for training**: the labeling UI only lists PDFs with **five pages or fewer** (based on the latest probe run). This keeps the review queue fast and produces a **clean, consistent training set** for future ML models because every label is tied to a compact, easy-to-verify document.
 - **Chrome-safe previews**: reviewers see up to **five rendered page images** per PDF instead of an embedded browser PDF, which avoids Chrome iframe restrictions and keeps the review entirely local.
 

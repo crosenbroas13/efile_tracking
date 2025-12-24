@@ -158,6 +158,19 @@ def _merge_page_counts(inventory_df: pd.DataFrame, docs_df: pd.DataFrame) -> pd.
     return inventory_df.merge(docs_view[["rel_path", "page_count"]], on="rel_path", how="left")
 
 
+def _add_folder_columns(inventory_df: pd.DataFrame) -> pd.DataFrame:
+    inventory_df = inventory_df.copy()
+    rel_paths = inventory_df["rel_path"].astype(str).map(normalize_rel_path)
+    parent_folder = rel_paths.map(lambda path: PurePosixPath(path).parent.as_posix())
+    inventory_df["parent_folder"] = parent_folder.replace({".": "Root"})
+    if "top_level_folder" not in inventory_df.columns:
+        inventory_df["top_level_folder"] = rel_paths.map(
+            lambda path: PurePosixPath(path).parts[0] if PurePosixPath(path).parts else "Root"
+        )
+    inventory_df["top_level_folder"] = inventory_df["top_level_folder"].fillna("Root").replace("", "Root")
+    return inventory_df
+
+
 st.title("PDF Type Labeling")
 st.caption("Friendly workspace for applying human-reviewed labels and saving them to the master labels file.")
 
@@ -223,10 +236,15 @@ st.caption(
     "a compact ML training example."
 )
 
-filter_text = st.text_input(
-    "Filter PDFs by folder or filename",
-    value="",
-    help="Type part of a path to narrow the list, especially for large inventories.",
+st.markdown(
+    """
+    **Find the right PDF faster**
+
+    Use these controls to keep the list manageable:
+    - **Search** narrows the list by anything in the path (folder name or file name).
+    - **Browse by folder** keeps similar PDFs together so you can label in batches.
+    - **Sort order** changes which files appear first, so you can prioritize quick wins.
+    """
 )
 
 inventory_ui = _merge_page_counts(inventory_df, docs_df)
@@ -234,6 +252,7 @@ inventory_ui["page_count"] = pd.to_numeric(inventory_ui["page_count"], errors="c
 inventory_ui = inventory_ui[
     (inventory_ui["page_count"] > 0) & (inventory_ui["page_count"] <= MAX_LABEL_PAGES)
 ].copy()
+inventory_ui = _add_folder_columns(inventory_ui)
 label_lookup = labels_df.set_index("rel_path")["label"].to_dict() if not labels_df.empty else {}
 inventory_ui["current_label"] = inventory_ui["rel_path"].map(label_lookup).fillna("")
 inventory_ui["is_labeled"] = inventory_ui["current_label"].astype(str).str.strip() != ""
@@ -251,11 +270,62 @@ show_labeled = st.checkbox(
     help="Turn this on only when you need to review or update existing labels.",
 )
 
+filter_cols = st.columns([2, 2, 2])
+with filter_cols[0]:
+    filter_text = st.text_input(
+        "Search by folder or filename",
+        value="",
+        help="Type part of a path to narrow the list, especially for large inventories.",
+    )
+with filter_cols[1]:
+    browse_mode = st.selectbox(
+        "Browse by folder",
+        options=["All folders", "Top-level folder", "Parent folder"],
+        help="Switch to a folder view when you want to label similar files together.",
+    )
+with filter_cols[2]:
+    sort_choice = st.selectbox(
+        "Sort list by",
+        options=[
+            "Relative path (A → Z)",
+            "Relative path (Z → A)",
+            "Page count (short → long)",
+            "Page count (long → short)",
+            "File size (small → large)",
+            "File size (large → small)",
+        ],
+        help="Sorting only affects the list order, not the saved labels.",
+    )
+
 candidate_df = inventory_ui if show_labeled else inventory_ui[~inventory_ui["is_labeled"]].copy()
 if filter_text:
     candidate_df = candidate_df[candidate_df["rel_path"].str.contains(filter_text, case=False, na=False)]
 
-candidate_df = candidate_df.sort_values("rel_path")
+if browse_mode != "All folders":
+    folder_column = "top_level_folder" if browse_mode == "Top-level folder" else "parent_folder"
+    folder_options = sorted(candidate_df[folder_column].dropna().astype(str).unique().tolist())
+    selected_folder = st.selectbox(
+        "Choose a folder",
+        options=["All folders"] + folder_options,
+        help="Selecting a folder filters the list below to just that folder.",
+    )
+    if selected_folder != "All folders":
+        candidate_df = candidate_df[candidate_df[folder_column] == selected_folder]
+
+sort_key_map = {
+    "Relative path (A → Z)": ("rel_path", True),
+    "Relative path (Z → A)": ("rel_path", False),
+    "Page count (short → long)": ("page_count", True),
+    "Page count (long → short)": ("page_count", False),
+    "File size (small → large)": ("size_bytes", True),
+    "File size (large → small)": ("size_bytes", False),
+}
+sort_column, sort_ascending = sort_key_map.get(sort_choice, ("rel_path", True))
+if sort_column in candidate_df.columns:
+    candidate_df = candidate_df.sort_values(sort_column, ascending=sort_ascending, kind="mergesort")
+else:
+    candidate_df = candidate_df.sort_values("rel_path", ascending=True, kind="mergesort")
+
 candidate_paths = candidate_df["rel_path"].tolist()
 
 def _format_candidate_option(value: str) -> str:
