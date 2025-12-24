@@ -2,12 +2,31 @@ from __future__ import annotations
 
 import argparse
 import subprocess
+import sys
+from datetime import datetime, timezone
 from pathlib import Path
+
+import pandas as pd
 
 from .config import DEFAULT_OUTPUT_ROOT, InventoryConfig, ProbePaths, ProbeRunConfig
 from .inventory.runner import InventoryRunner
 from .probe.runner import run_probe_and_save
-from .utils.io import latest_inventory, self_check
+from .utils.io import latest_inventory, latest_probe, load_table, self_check
+from .utils.paths import normalize_rel_path
+from .pdf_type.labels import (
+    LABEL_VALUES,
+    filter_pdf_inventory,
+    inventory_identity,
+    labels_path,
+    load_inventory,
+    load_labels,
+    match_labels_to_inventory,
+    normalize_labels_for_save,
+    reconcile_labels,
+    write_labels,
+)
+
+from src.probe_readiness import stable_doc_id
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -60,6 +79,34 @@ def build_parser() -> argparse.ArgumentParser:
 
     health = subparsers.add_parser("self-check", help="Prepare expected folders")
     health.set_defaults(func=run_self_check)
+
+    pdf_type = subparsers.add_parser("pdf_type", help="PDF type labeling and model helpers")
+    pdf_sub = pdf_type.add_subparsers(dest="subcommand")
+
+    pdf_label = pdf_sub.add_parser("label", help="Label a PDF by relative path")
+    pdf_label.add_argument("--inventory", default="LATEST", help="Inventory path or run id or LATEST")
+    pdf_label.add_argument("--out", default=str(DEFAULT_OUTPUT_ROOT), help="Outputs root")
+    pdf_label.add_argument("--rel-path", required=True, help="Relative path to the PDF to label")
+    pdf_label.add_argument("--label", required=True, choices=sorted(LABEL_VALUES), help="Label to apply")
+    pdf_label.add_argument("--source-probe-run", default="", help="Optional probe run id used for labeling")
+    pdf_label.add_argument("--notes", default="", help="Optional notes for the label")
+    pdf_label.add_argument("--labeling-version", default="", help="Optional labeling schema version")
+    pdf_label.add_argument("--overwrite", action="store_true", help="Overwrite an existing label")
+    pdf_label.set_defaults(func=run_pdf_type_label_cmd)
+
+    pdf_train = pdf_sub.add_parser("train", help="Prepare training data from labels")
+    pdf_train.add_argument("--inventory", default="LATEST", help="Inventory path or run id or LATEST")
+    pdf_train.add_argument("--out", default=str(DEFAULT_OUTPUT_ROOT), help="Outputs root")
+    pdf_train.add_argument("--exclude-mixed", action="store_true", help="Exclude MIXED_PDF labels from training")
+    pdf_train.add_argument("--output", default="", help="Optional output CSV path for training data")
+    pdf_train.set_defaults(func=run_pdf_type_train_cmd)
+
+    pdf_predict = pdf_sub.add_parser("predict", help="Generate predictions for unlabeled PDFs")
+    pdf_predict.add_argument("--inventory", default="LATEST", help="Inventory path or run id or LATEST")
+    pdf_predict.add_argument("--probe", default="LATEST", help="Probe run id, path, or LATEST")
+    pdf_predict.add_argument("--out", default=str(DEFAULT_OUTPUT_ROOT), help="Outputs root")
+    pdf_predict.add_argument("--output", default="", help="Optional output CSV path for predictions")
+    pdf_predict.set_defaults(func=run_pdf_type_predict_cmd)
 
     return parser
 
@@ -119,6 +166,198 @@ def run_probe_cmd(args: argparse.Namespace) -> None:
     print(f"Summary  : {run_dir / 'probe_summary.json'}")
 
 
+def run_pdf_type_label_cmd(args: argparse.Namespace) -> None:
+    outputs_root = Path(args.out)
+    inventory_path = resolve_inventory_path(args.inventory, outputs_root)
+    inventory_df = filter_pdf_inventory(load_inventory(inventory_path))
+    labels_csv = labels_path(outputs_root)
+    labels_df = load_labels(labels_csv, inventory_df)
+    inventory_id = inventory_identity(inventory_path)
+
+    rel_path = normalize_rel_path(args.rel_path)
+    label_value = str(args.label).upper()
+    if label_value not in LABEL_VALUES:
+        raise SystemExit(f"Label must be one of {sorted(LABEL_VALUES)}")
+
+    existing = labels_df[labels_df["rel_path"] == rel_path]
+    if not existing.empty:
+        existing_label = existing.iloc[0]["label"]
+        print(f"Existing label for {rel_path}: {existing_label}")
+        if not args.overwrite:
+            if sys.stdin.isatty():
+                confirm = input("Overwrite existing label? [y/N]: ").strip().lower()
+                if confirm not in ("y", "yes"):
+                    match_result = match_labels_to_inventory(inventory_df, labels_df)
+                    reconcile_labels(
+                        inventory_df=inventory_df,
+                        labels_df=labels_df,
+                        outputs_root=outputs_root,
+                        inventory_id=inventory_id,
+                        match_result=match_result,
+                    )
+                    print("Label unchanged.")
+                    return
+            else:
+                raise SystemExit("Label already exists. Use --overwrite to replace.")
+
+    doc_id_at_label_time = ""
+    sha_at_label_time = ""
+    inventory_matches = inventory_df[inventory_df["rel_path"] == rel_path]
+    if not inventory_matches.empty:
+        row = inventory_matches.iloc[0]
+        doc_id_at_label_time = _compute_doc_id_from_row(row)
+        hash_value = row.get("hash_value")
+        if isinstance(hash_value, str) and len(hash_value) == 64:
+            sha_at_label_time = hash_value
+    else:
+        print(f"Warning: rel_path {rel_path} not found in current inventory.")
+
+    label_record = {
+        "rel_path": rel_path,
+        "label": label_value,
+        "labeled_at": datetime.now(timezone.utc).isoformat(),
+        "source_inventory_run": inventory_id,
+        "source_probe_run": args.source_probe_run or "",
+        "doc_id_at_label_time": doc_id_at_label_time,
+        "sha256_at_label_time": sha_at_label_time,
+        "notes": args.notes or "",
+        "labeling_version": args.labeling_version or "",
+    }
+
+    labels_df = labels_df[labels_df["rel_path"] != rel_path]
+    labels_df = pd.concat([labels_df, pd.DataFrame([label_record])], ignore_index=True)
+    labels_df = normalize_labels_for_save(labels_df)
+    write_labels(labels_df, labels_csv)
+    print(f"Labeled rel_path: {rel_path}")
+    if doc_id_at_label_time:
+        print(f"doc_id (current run): {doc_id_at_label_time}")
+    print(f"Saved labels to {labels_csv}")
+
+    match_result = match_labels_to_inventory(inventory_df, labels_df)
+    reconcile_labels(
+        inventory_df=inventory_df,
+        labels_df=labels_df,
+        outputs_root=outputs_root,
+        inventory_id=inventory_id,
+        match_result=match_result,
+    )
+
+
+def run_pdf_type_train_cmd(args: argparse.Namespace) -> None:
+    outputs_root = Path(args.out)
+    inventory_path = resolve_inventory_path(args.inventory, outputs_root)
+    inventory_df = filter_pdf_inventory(load_inventory(inventory_path))
+    labels_csv = labels_path(outputs_root)
+    labels_df = load_labels(labels_csv, inventory_df)
+    inventory_id = inventory_identity(inventory_path)
+
+    match_result = match_labels_to_inventory(inventory_df, labels_df)
+    reconcile_labels(
+        inventory_df=inventory_df,
+        labels_df=labels_df,
+        outputs_root=outputs_root,
+        inventory_id=inventory_id,
+        match_result=match_result,
+    )
+
+    matched_df = match_result.matched.copy()
+    if matched_df.empty:
+        print("No matched labels found. Training dataset was not generated.")
+        return
+    if args.exclude_mixed:
+        matched_df = matched_df[matched_df["label"] != "MIXED_PDF"]
+
+    matched_df["doc_id"] = matched_df.apply(_compute_doc_id_from_row, axis=1)
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    output_path = Path(args.output) if args.output else (labels_csv.parent / f"pdf_type_training_{timestamp}.csv")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    output_columns = [
+        "rel_path",
+        "label",
+        "doc_id",
+        "top_level_folder",
+        "size_bytes",
+        "modified_time",
+        "hash_value",
+        "labeled_at",
+        "source_inventory_run",
+        "source_probe_run",
+        "notes",
+        "labeling_version",
+    ]
+    output_df = matched_df[[col for col in output_columns if col in matched_df.columns]]
+    output_df.to_csv(output_path, index=False)
+    print(f"Wrote training dataset with {len(output_df)} labels to {output_path}")
+
+
+def run_pdf_type_predict_cmd(args: argparse.Namespace) -> None:
+    outputs_root = Path(args.out)
+    inventory_path = resolve_inventory_path(args.inventory, outputs_root)
+    inventory_df = filter_pdf_inventory(load_inventory(inventory_path))
+    labels_csv = labels_path(outputs_root)
+    labels_df = load_labels(labels_csv, inventory_df)
+    inventory_id = inventory_identity(inventory_path)
+
+    match_result = match_labels_to_inventory(inventory_df, labels_df)
+    reconcile_labels(
+        inventory_df=inventory_df,
+        labels_df=labels_df,
+        outputs_root=outputs_root,
+        inventory_id=inventory_id,
+        match_result=match_result,
+    )
+
+    unlabeled_df = match_result.unmatched_inventory.copy()
+    if unlabeled_df.empty:
+        print("All PDFs are already labeled. No predictions generated.")
+        return
+
+    probe_docs, probe_run_id = _load_probe_docs(args.probe, outputs_root)
+    label_map = {}
+    if not probe_docs.empty:
+        probe_docs = probe_docs.copy()
+        probe_docs["rel_path"] = probe_docs["rel_path"].astype(str).map(normalize_rel_path)
+        classification_map = {
+            "Text-based": "TEXT_PDF",
+            "Scanned": "IMAGE_PDF",
+            "Mixed": "MIXED_PDF",
+        }
+        probe_docs["predicted_label"] = probe_docs["classification"].map(classification_map).fillna("")
+        label_map = (
+            probe_docs.set_index("rel_path")["predicted_label"].astype(str).to_dict()
+            if "rel_path" in probe_docs.columns
+            else {}
+        )
+    elif args.probe:
+        print("Warning: Probe data not found; predictions will be blank.")
+
+    unlabeled_df["doc_id"] = unlabeled_df.apply(_compute_doc_id_from_row, axis=1)
+    unlabeled_df["predicted_label"] = unlabeled_df["rel_path"].map(label_map).fillna("")
+    unlabeled_df["prediction_source"] = unlabeled_df["predicted_label"].apply(
+        lambda value: "probe_classification" if value else "missing_probe_classification"
+    )
+    unlabeled_df["predicted_at"] = datetime.now(timezone.utc).isoformat()
+    unlabeled_df["source_probe_run"] = probe_run_id
+
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    output_path = Path(args.output) if args.output else (labels_csv.parent / f"pdf_type_predictions_{timestamp}.csv")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    output_columns = [
+        "rel_path",
+        "doc_id",
+        "predicted_label",
+        "prediction_source",
+        "predicted_at",
+        "source_probe_run",
+        "top_level_folder",
+    ]
+    output_df = unlabeled_df[[col for col in output_columns if col in unlabeled_df.columns]]
+    output_df.to_csv(output_path, index=False)
+    print(f"Wrote predictions for {len(output_df)} unlabeled PDFs to {output_path}")
+
+
 def run_qa_open(args: argparse.Namespace) -> None:
     out_dir = Path(args.out)
     cmd = f"streamlit run app/Home.py -- --out {out_dir}"
@@ -131,6 +370,41 @@ def run_self_check(args: argparse.Namespace) -> None:
     print("Prepared folders:")
     for key, value in info.items():
         print(f"- {key}: {value}")
+
+
+def _compute_doc_id_from_row(row: pd.Series) -> str:
+    series = pd.Series(
+        {
+            "sha256": row.get("sha256"),
+            "rel_path": row.get("rel_path"),
+            "size_bytes": row.get("size_bytes"),
+            "modified_time": row.get("modified_time"),
+        }
+    )
+    return stable_doc_id(series)
+
+
+def _load_probe_docs(value: str, outputs_root: Path) -> tuple[pd.DataFrame, str]:
+    if not value or value.upper() == "NONE":
+        return pd.DataFrame(), ""
+    if value == "LATEST":
+        latest = latest_probe(outputs_root)
+        if latest:
+            run_dir, pointer = latest
+            docs = load_table(run_dir / "readiness_docs")
+            return docs, pointer.get("probe_run_id", run_dir.name)
+        return pd.DataFrame(), ""
+    candidate = Path(value)
+    if candidate.exists():
+        if candidate.is_dir():
+            docs = load_table(candidate / "readiness_docs")
+            return docs, candidate.name
+        return load_table(candidate), candidate.stem
+    run_dir = outputs_root / "probes" / value
+    if run_dir.exists():
+        docs = load_table(run_dir / "readiness_docs")
+        return docs, run_dir.name
+    return pd.DataFrame(), ""
 
 
 def main(argv=None):
