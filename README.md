@@ -90,7 +90,7 @@ Use this checklist to understand what lives where. It is written in plain langua
   - `app/pages/03_Probe_Run_Compare.py`: Side-by-side comparison page for two probe runs, highlighting shifts in totals and document-level readiness.
   - `app/pages/04_Document_Filter.py`: Filterable document table that merges probe outputs with inventory metadata so reviewers can quickly spot long, low-text, or unusual files without opening the PDFs.
   - `app/pages/04_Probe_Document_Viewer.py`: Single-document preview page with relative path search and alternate image previews for PDF files.
-  - `app/pages/05_Text_Based_Documents.py`: Focused view for **100% text-based** PDFs, showing the latest text-ready share as a pie chart and pairing each PDF preview with its extracted text so reviewers can quickly confirm what is ready for immediate analysis.
+  - `app/pages/05_Text_Based_Documents.py`: Focused view for **100% text-based** PDFs, showing the latest text-ready share as a pie chart and pairing each PDF preview with its extracted text so reviewers can quickly confirm what is ready for immediate analysis. The preview toggle includes a **Chrome-safe rendered image** option, which is helpful when embedded PDFs are blocked in a browser or when sharing with non-technical reviewers who need a quick visual check without downloading files.
 
 - **Core package (`src/` folder)**
   - `src/__init__.py`: Exposes the `InventoryRunner` and result dataclass for simple imports.

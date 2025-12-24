@@ -118,6 +118,24 @@ def _render_pdf(path: Path) -> None:
     st.components.v1.html(iframe, height=820, scrolling=True)
 
 
+def _render_pdf_image_preview(path: Path) -> bool:
+    if not importlib.util.find_spec("fitz"):
+        return False
+    fitz = importlib.import_module("fitz")
+    doc = fitz.open(path)
+    try:
+        if doc.page_count < 1:
+            return False
+        page = doc.load_page(0)
+        pix = page.get_pixmap()
+        st.image(pix.tobytes("png"), caption="Page 1 preview (rendered locally)")
+        if doc.page_count > 1:
+            st.caption("Only the first page is shown to keep the preview lightweight.")
+        return True
+    finally:
+        doc.close()
+
+
 def _build_doc_label(row: pd.Series) -> str:
     rel_path = str(row.get("rel_path") or "(unknown path)")
     page_count = int(pd.to_numeric(row.get("page_count"), errors="coerce") or 0)
@@ -249,7 +267,26 @@ def main() -> None:
     preview_cols = st.columns(2)
     with preview_cols[0]:
         st.markdown("#### PDF preview")
-        _render_pdf(pdf_path)
+        st.caption(
+            "If your browser blocks embedded PDFs, switch to the rendered image mode. "
+            "It shows the first page only, keeping the preview lightweight for reviewers."
+        )
+        preview_mode = st.radio(
+            "Preview mode",
+            options=["Embedded PDF (may be blocked)", "Rendered image (Chrome-safe)"],
+            horizontal=True,
+            index=1,
+            key="text_doc_preview_mode",
+        )
+        if preview_mode.startswith("Rendered"):
+            rendered = _render_pdf_image_preview(pdf_path)
+            if not rendered:
+                st.warning(
+                    "Image preview requires PyMuPDF (`fitz`). Install it to use this mode, "
+                    "or download the PDF to view it in a local reader."
+                )
+        else:
+            _render_pdf(pdf_path)
 
     with preview_cols[1]:
         st.markdown("#### Extracted text")
