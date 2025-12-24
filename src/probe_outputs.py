@@ -77,22 +77,6 @@ def _summarize(
         "estimated_ocr_pages_baseline": baseline_ocr_pages,
         "estimated_ocr_pages_baseline_pct": (baseline_ocr_pages / total_pages) if total_pages else 0,
     }
-
-    mostly_black_count = 0
-    if "is_mostly_black" in pages_df.columns:
-        mostly_black_count = int(pages_df[pages_df["is_mostly_black"] == True].shape[0])  # noqa: E712
-        summary["mostly_black_pages"] = mostly_black_count
-        summary["mostly_black_pct"] = (mostly_black_count / total_pages) if total_pages else 0
-        summary["estimated_ocr_avoidable_pages"] = mostly_black_count
-        summary["estimated_ocr_avoidable_pct"] = summary.get("mostly_black_pct", 0)
-
-    adjusted_ocr_pages = max(baseline_ocr_pages - mostly_black_count, 0)
-    summary["estimated_ocr_pages_adjusted"] = adjusted_ocr_pages
-    summary["estimated_ocr_pages_adjusted_pct"] = (adjusted_ocr_pages / total_pages) if total_pages else 0
-
-    if "mostly_black_pct" in docs_df:
-        top_black = docs_df.sort_values("mostly_black_pct", ascending=False).head(20)
-        summary["top_black_docs"] = top_black[["doc_id", "rel_path", "mostly_black_pct"]].fillna(0).to_dict(orient="records")
     if "text_coverage_pct" in docs_df:
         top_scanned = docs_df.sort_values("text_coverage_pct").head(20)
         summary["top_scanned_docs"] = top_scanned[["doc_id", "rel_path", "text_coverage_pct"]].fillna(0).to_dict(orient="records")
@@ -100,17 +84,6 @@ def _summarize(
         "text_char_threshold": config.text_char_threshold,
         "doc_text_pct_text": config.doc_text_pct_text,
         "doc_text_pct_scanned": config.doc_text_pct_scanned,
-        "black_threshold_intensity": config.fixed_black_intensity,
-        "mostly_black_ratio": config.mostly_black_ratio_fixed,
-        "adaptive_percentile": config.adaptive_percentile,
-        "mostly_black_ratio_adapt": config.mostly_black_ratio_adapt,
-        "dark_page_median_cutoff": config.dark_page_median_cutoff,
-        "redaction_dark_ratio_min": config.redaction_dark_ratio_min,
-        "redaction_contrast_min": config.redaction_contrast_min,
-        "redaction_low_contrast_max": config.redaction_low_contrast_max,
-        "render_dpi": config.render_dpi,
-        "center_crop_pct": config.center_crop_pct,
-        "use_center_crop": config.use_center_crop,
     }
     return summary
 

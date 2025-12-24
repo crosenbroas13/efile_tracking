@@ -10,7 +10,7 @@ if str(APP_ROOT) not in sys.path:
     sys.path.insert(0, str(APP_ROOT))
 
 from src.probe_io import list_probe_runs, load_probe_run  # noqa: E402
-from src.probe_viz_helpers import format_pct, safe_pct, safe_series  # noqa: E402
+from src.probe_viz_helpers import format_pct, safe_series  # noqa: E402
 
 st.set_page_config(page_title="Probe Run Compare", layout="wide")
 
@@ -59,11 +59,6 @@ def _compute_totals(docs_df: pd.DataFrame, pages_df: pd.DataFrame, summary: Dict
         pages_with_text = int(pd.to_numeric(docs_df["pages_with_text"], errors="coerce").fillna(0).sum())
     pages_with_text = pages_with_text or 0
 
-    mostly_black_pages = summary.get("mostly_black_pages")
-    if mostly_black_pages is None and "is_mostly_black" in pages_df.columns:
-        mostly_black_pages = int(pages_df[pages_df["is_mostly_black"] == True].shape[0])  # noqa: E712
-    mostly_black_pages = mostly_black_pages or 0
-
     baseline_ocr = summary.get("estimated_ocr_pages_baseline")
     if baseline_ocr is None:
         baseline_ocr = max(total_pages - pages_with_text, 0)
@@ -72,10 +67,7 @@ def _compute_totals(docs_df: pd.DataFrame, pages_df: pd.DataFrame, summary: Dict
         {
             "pages_with_text": pages_with_text,
             "pages_without_text": max(total_pages - pages_with_text, 0),
-            "mostly_black_pages": mostly_black_pages,
-            "mostly_black_pct": safe_pct(mostly_black_pages, total_pages),
             "estimated_ocr_pages_baseline": baseline_ocr,
-            "estimated_ocr_pages_adjusted": summary.get("estimated_ocr_pages_adjusted", baseline_ocr),
             "classification_counts": summary.get("classification_counts", {}),
         }
     )
@@ -99,7 +91,6 @@ def _prep_docs(df: pd.DataFrame) -> pd.DataFrame:
     base["top_level_folder"] = safe_series(base, "top_level_folder", "")
     base["page_count"] = pd.to_numeric(safe_series(base, "page_count", 0), errors="coerce").fillna(0)
     base["text_coverage_pct"] = pd.to_numeric(safe_series(base, "text_coverage_pct", 0), errors="coerce").fillna(0)
-    base["mostly_black_pct"] = pd.to_numeric(safe_series(base, "mostly_black_pct", 0), errors="coerce").fillna(0)
     base["classification"] = safe_series(base, "classification", "Unknown")
     return base
 
@@ -150,10 +141,7 @@ def main():
         ("total_pages", "Pages processed", False),
         ("pages_with_text", "Pages with text", False),
         ("pages_without_text", "Pages without text", False),
-        ("mostly_black_pages", "Redaction-like pages", False),
-        ("mostly_black_pct", "Redaction-like share", True),
         ("estimated_ocr_pages_baseline", "Baseline OCR pages", False),
-        ("estimated_ocr_pages_adjusted", "Adjusted OCR pages", False),
     ]:
         value_a = totals_a.get(key, 0)
         value_b = totals_b.get(key, 0)
@@ -248,9 +236,6 @@ def main():
     merged["delta_text_coverage"] = merged["text_coverage_pct_comp"].fillna(0) - merged[
         "text_coverage_pct_base"
     ].fillna(0)
-    merged["delta_mostly_black"] = merged["mostly_black_pct_comp"].fillna(0) - merged[
-        "mostly_black_pct_base"
-    ].fillna(0)
     merged["delta_page_count"] = merged["page_count_comp"].fillna(0) - merged["page_count_base"].fillna(0)
 
     table_cols = [
@@ -266,20 +251,15 @@ def main():
         "text_coverage_pct_base",
         "text_coverage_pct_comp",
         "delta_text_coverage",
-        "mostly_black_pct_base",
-        "mostly_black_pct_comp",
-        "delta_mostly_black",
     ]
 
     top_change = st.slider("Highlight top N changes", min_value=10, max_value=200, value=50, step=10)
     change_focus = st.selectbox(
         "Focus on",
-        ["Largest text coverage shifts", "Largest redaction-like shifts", "Largest page count shifts"],
+        ["Largest text coverage shifts", "Largest page count shifts"],
     )
 
-    if change_focus == "Largest redaction-like shifts":
-        sort_key = "delta_mostly_black"
-    elif change_focus == "Largest page count shifts":
+    if change_focus == "Largest page count shifts":
         sort_key = "delta_page_count"
     else:
         sort_key = "delta_text_coverage"
