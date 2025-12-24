@@ -9,7 +9,7 @@ import pandas as pd
 
 from ..config import ProbeRunConfig, new_run_id
 from ..utils.git import current_git_commit
-from ..utils.io import ensure_dir, write_json, write_pointer
+from ..utils.io import ensure_dir, read_json, write_json, write_pointer
 
 PROBE_POINTER = "LATEST.json"
 
@@ -108,11 +108,20 @@ def _summarize(docs_df: pd.DataFrame, pages_df: pd.DataFrame, config: ProbeRunCo
     return summary
 
 
+def _infer_inventory_label(inventory_path: Path) -> str | None:
+    summary_path = inventory_path.with_name("inventory_summary.json")
+    summary = read_json(summary_path)
+    source_root_name = summary.get("source_root_name")
+    if source_root_name:
+        return str(source_root_name)
+    return None
+
+
 def write_probe_outputs(
     pages_df: pd.DataFrame, docs_df: pd.DataFrame, config: ProbeRunConfig, meta: Dict
 ) -> Path:
     probe_root = ensure_dir(Path(config.paths.outputs_root) / "probes")
-    probe_run_id = new_run_id("probe")
+    probe_run_id = new_run_id("probe", label=_infer_inventory_label(config.paths.inventory))
     run_dir = probe_root / probe_run_id
     ensure_dir(run_dir)
 
