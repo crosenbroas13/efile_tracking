@@ -46,6 +46,7 @@ This toolkit inventories DOJ document drops and runs light-touch probes to estim
 - Multipage launcher: `streamlit run app/Home.py -- --out ./outputs`. Use `--server.headless true` if you are running on a remote machine and need a URL to connect from your browser.
 - Pages read stored artifacts only; they do not rerun inventories or probes. Point them at `./outputs` to pick up the latest versioned runs via `LATEST.json`.
 - What you see: the Home page lists available inventories and probe runs. The QA pages chart text readiness, dark-page ratios, and basic file counts so stakeholders can understand what is ready for review without installing Python tools themselves. The Probe Run Comparison page highlights differences between two probe runs so teams can explain what changed over time.
+- Document preview: the Probe Document Viewer page lets you select a PDF from the latest probe run and preview it locally in the browser. This makes it easy for non-technical reviewers to confirm specific files without sharing them externally.
 - Data handling: Streamlit reads only from your local `outputs/` folder and never uploads files. You can safely share screenshots or exported charts because the app avoids transmitting underlying documents.
 - Troubleshooting: if Streamlit cannot find data, rerun `python -m doj_doc_explorer.cli self-check` to create expected folders, then rerun an inventory or probe. The CLI will print the exact command needed to launch the dashboards with your chosen output path.
 
@@ -82,8 +83,9 @@ Use this checklist to understand what lives where. It is written in plain langua
   - `app/Home.py`: Landing page that introduces the dashboards and explains how to navigate them safely.
   - `app/qa_fileimport.py`: Main Streamlit view for browsing inventories, highlighting potential issues, and exporting a PDF summary.
   - `app/pages/01_Inventory_QA.py`: Thin wrapper that hosts the inventory QA view inside the multipage app.
-  - `app/pages/02_Probe_QA.py`: Probe results viewer with charts and download buttons for the readiness metrics.
-  - `app/pages/03_Probe_Run_Compare.py`: Side-by-side comparison page for two probe runs, highlighting shifts in totals and document-level readiness.
+- `app/pages/02_Probe_QA.py`: Probe results viewer with charts and download buttons for the readiness metrics.
+- `app/pages/03_Probe_Run_Compare.py`: Side-by-side comparison page for two probe runs, highlighting shifts in totals and document-level readiness.
+- `app/pages/04_Probe_Document_Viewer.py`: Document preview page that lets reviewers pick a PDF from the latest probe run and view it safely in the browser.
 
 - **Core package (`src/` folder)**
   - `src/__init__.py`: Exposes the `InventoryRunner` and result dataclass for simple imports.
