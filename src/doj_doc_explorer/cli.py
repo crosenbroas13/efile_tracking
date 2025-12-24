@@ -12,6 +12,8 @@ import pandas as pd
 from .config import DEFAULT_OUTPUT_ROOT, InventoryConfig, ProbePaths, ProbeRunConfig
 from .inventory.runner import InventoryRunner
 from .probe.runner import run_probe_and_save
+from .text_scan.config import TextQualityConfig, TextScanRunConfig
+from .text_scan.runner import run_text_scan_and_save
 from .utils.io import ensure_dir, latest_inventory, latest_probe, load_table, read_json, self_check, write_json
 from .utils.paths import normalize_rel_path
 from .classification.doc_type.features import DEFAULT_DPI, DEFAULT_PAGES_SAMPLED, DEFAULT_SEED
@@ -93,6 +95,42 @@ def build_parser() -> argparse.ArgumentParser:
         help="Minimum confidence to trust doc-type model predictions",
     )
     probe_run.set_defaults(func=run_probe_cmd)
+
+    text_scan = subparsers.add_parser("text_scan", help="Text scan commands")
+    text_scan_sub = text_scan.add_subparsers(dest="subcommand")
+    text_scan_run = text_scan_sub.add_parser("run", help="Run text scan against probe outputs")
+    text_scan_run.add_argument("--inventory", default="LATEST", help="Inventory path or run id or LATEST")
+    text_scan_run.add_argument("--probe", default="LATEST", help="Probe run id, path, or LATEST")
+    text_scan_run.add_argument("--out", default=str(DEFAULT_OUTPUT_ROOT), help="Outputs root")
+    text_scan_run.add_argument("--max-docs", type=int, default=0, help="Limit number of PDFs (0 = all)")
+    text_scan_run.add_argument("--max-pages", type=int, default=0, help="Limit pages per PDF (0 = all)")
+    text_scan_run.add_argument(
+        "--min-text-pages",
+        type=int,
+        default=1,
+        help="Minimum pages marked as text in probe before scanning",
+    )
+    text_scan_run.add_argument(
+        "--store-snippet",
+        dest="store_snippet",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Store a short sanitized text snippet for debugging",
+    )
+    text_scan_run.add_argument("--seed", type=int, default=42, help="Sampling seed")
+    text_scan_run.add_argument("--empty-min-chars", type=int, default=50, help="Chars threshold for EMPTY")
+    text_scan_run.add_argument("--empty-min-words", type=int, default=10, help="Words threshold for EMPTY")
+    text_scan_run.add_argument("--min-alpha-ratio", type=float, default=0.45, help="Minimum alpha ratio for GOOD")
+    text_scan_run.add_argument("--min-printable-ratio", type=float, default=0.95, help="Minimum printable ratio for GOOD")
+    text_scan_run.add_argument("--max-gibberish", type=float, default=0.60, help="Max gibberish score for GOOD")
+    text_scan_run.add_argument("--gibberish-min-words", type=int, default=30, help="Words threshold for gibberish")
+    text_scan_run.add_argument(
+        "--gibberish-symbol-ratio",
+        type=float,
+        default=0.45,
+        help="Symbol ratio threshold for gibberish",
+    )
+    text_scan_run.set_defaults(func=run_text_scan_cmd)
 
     qa = subparsers.add_parser("qa", help="QA helpers")
     qa_sub = qa.add_subparsers(dest="subcommand")
@@ -235,6 +273,36 @@ def run_probe_cmd(args: argparse.Namespace) -> None:
     print("Probe run complete")
     print(f"Run dir  : {run_dir}")
     print(f"Summary  : {run_dir / 'probe_summary.json'}")
+
+
+def run_text_scan_cmd(args: argparse.Namespace) -> None:
+    outputs_root = Path(args.out)
+    inventory_path = resolve_inventory_path(args.inventory, outputs_root)
+    probe_run_dir = resolve_probe_run_dir(args.probe, outputs_root)
+    quality_config = TextQualityConfig(
+        empty_min_chars=args.empty_min_chars,
+        empty_min_words=args.empty_min_words,
+        min_alpha_ratio=args.min_alpha_ratio,
+        min_printable_ratio=args.min_printable_ratio,
+        max_gibberish=args.max_gibberish,
+        gibberish_min_words=args.gibberish_min_words,
+        gibberish_symbol_ratio=args.gibberish_symbol_ratio,
+    )
+    config = TextScanRunConfig(
+        inventory_path=inventory_path,
+        probe_run_dir=probe_run_dir,
+        outputs_root=outputs_root,
+        max_docs=args.max_docs,
+        max_pages=args.max_pages,
+        min_text_pages=args.min_text_pages,
+        seed=args.seed,
+        store_snippet=args.store_snippet,
+        quality=quality_config,
+    )
+    run_dir = run_text_scan_and_save(config)
+    print("Text scan complete")
+    print(f"Run dir  : {run_dir}")
+    print(f"Summary  : {run_dir / 'text_scan_summary.json'}")
 
 
 def run_pdf_type_label_cmd(args: argparse.Namespace) -> None:
@@ -702,6 +770,24 @@ def _load_probe_docs(value: str, outputs_root: Path) -> tuple[pd.DataFrame, str]
         docs = load_table(run_dir / "readiness_docs")
         return docs, run_dir.name
     return pd.DataFrame(), ""
+
+
+def resolve_probe_run_dir(value: str, outputs_root: Path) -> Path:
+    if value == "LATEST":
+        latest = latest_probe(outputs_root)
+        if latest:
+            run_dir, _pointer = latest
+            return run_dir
+        raise SystemExit("No probe run found. Run a probe first.")
+    candidate = Path(value)
+    if candidate.exists():
+        if candidate.is_dir():
+            return candidate
+        return candidate.parent
+    run_dir = outputs_root / "probes" / value
+    if run_dir.exists():
+        return run_dir
+    raise SystemExit(f"Could not locate probe run at {value}")
 
 
 def main(argv=None):

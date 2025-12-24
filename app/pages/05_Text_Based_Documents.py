@@ -16,6 +16,7 @@ if str(APP_ROOT) not in sys.path:
 
 from src.io_utils import get_default_out_dir  # noqa: E402
 from src.probe_io import list_probe_runs, load_probe_run  # noqa: E402
+from src.text_scan_io import load_latest_text_scan  # noqa: E402
 
 st.set_page_config(page_title="Text Based Documents", layout="wide")
 
@@ -27,6 +28,11 @@ def cached_list_probe_runs(out_dir_str: str) -> List[Dict]:
 @st.cache_data(show_spinner=False)
 def cached_load_probe_run(out_dir_str: str, run_id: str):
     return load_probe_run(out_dir_str, run_id)
+
+
+@st.cache_data(show_spinner=False)
+def cached_load_latest_text_scan(out_dir_str: str):
+    return load_latest_text_scan(out_dir_str)
 
 
 @st.cache_data(show_spinner=False)
@@ -140,25 +146,54 @@ def _build_doc_label(row: pd.Series) -> str:
     return f"{rel_path} · {page_count} pages"
 
 
-def _pie_chart(text_count: int, other_count: int) -> None:
-    pie_df = pd.DataFrame(
-        {
-            "Category": ["100% text-based", "Mixed or no text"],
-            "Documents": [text_count, other_count],
-        }
+def _normalize_rel_path(path: str) -> str:
+    if not path:
+        return ""
+    cleaned = str(path).strip().replace("\\", "/")
+    if "::" in cleaned:
+        prefix, suffix = cleaned.split("::", 1)
+        return f"{_normalize_segment(prefix)}::{_normalize_segment(suffix)}"
+    return _normalize_segment(cleaned)
+
+
+def _normalize_segment(value: str) -> str:
+    cleaned = value.strip().replace("\\", "/")
+    while cleaned.startswith("./"):
+        cleaned = cleaned[2:]
+    while cleaned.startswith("/"):
+        cleaned = cleaned[1:]
+    parts = [part for part in cleaned.split("/") if part not in ("", ".")]
+    return "/".join(parts)
+
+
+def _ensure_columns(df: pd.DataFrame, columns: List[str]) -> pd.DataFrame:
+    df = df.copy()
+    for col in columns:
+        if col not in df.columns:
+            df[col] = pd.NA
+    return df[columns]
+
+
+def _bar_chart(df: pd.DataFrame) -> None:
+    if df.empty or "content_type_pred" not in df.columns:
+        st.info("No content type predictions available yet.")
+        return
+    counts = (
+        df["content_type_pred"]
+        .fillna("UNKNOWN")
+        .value_counts()
+        .reset_index()
+        .rename(columns={"index": "Content type", "content_type_pred": "Documents"})
     )
-    fig = px.pie(
-        pie_df,
-        names="Category",
-        values="Documents",
-        color="Category",
-        color_discrete_map={
-            "100% text-based": "#1f77b4",
-            "Mixed or no text": "#C9CDD3",
-        },
+    fig = px.bar(
+        counts,
+        x="Content type",
+        y="Documents",
+        text="Documents",
+        title="Content type mix for verified text PDFs",
+        color="Content type",
     )
-    fig.update_traces(textposition="inside", textinfo="percent+label")
-    fig.update_layout(margin=dict(l=10, r=10, t=10, b=10), showlegend=False)
+    fig.update_layout(margin=dict(l=10, r=10, t=40, b=10), showlegend=False)
     st.plotly_chart(fig, use_container_width=True)
 
 
@@ -170,9 +205,10 @@ def main() -> None:
     )
     st.markdown(
         """
-        **Why this matters:** text-based PDFs can be searched and summarized immediately, so this page isolates
-        the documents that are ready for fast analysis. The chart below shows how much of your latest probe
-        output falls into that fully text-based category.
+        **Why this matters:** text-based PDFs can be searched and summarized immediately, but some PDFs
+        contain *empty or junk* text layers that look “text-ready” when they are not. This page now combines
+        probe signals with a **Text Scan** quality check so non-technical reviewers can focus on **verified
+        text** and quickly queue suspicious files for relabeling.
         """
     )
 
@@ -197,33 +233,69 @@ def main() -> None:
         pd.to_numeric(docs_df.get("text_coverage_pct"), errors="coerce").fillna(0)
     )
 
-    total_docs = len(docs_df)
-    text_docs_df = docs_df[docs_df["text_coverage_pct"] >= 1.0].copy()
+    docs_df["rel_path_norm"] = docs_df["rel_path"].astype(str).map(_normalize_rel_path)
+    text_scan_df, _text_scan_summary, _text_scan_run_log = cached_load_latest_text_scan(out_dir_text)
+    if text_scan_df.empty:
+        st.warning("No text scan runs found yet. This page will show probe-only results.")
+    else:
+        text_scan_df = text_scan_df.copy()
+        text_scan_df["rel_path_norm"] = text_scan_df["rel_path"].astype(str).map(_normalize_rel_path)
+        merge_cols = [
+            "text_quality_label",
+            "text_quality_score",
+            "content_type_pred",
+            "content_type_confidence",
+            "total_words",
+            "alpha_ratio",
+            "gibberish_score",
+            "avg_chars_per_text_page",
+            "text_snippet",
+        ]
+        available_cols = [col for col in merge_cols if col in text_scan_df.columns and col not in docs_df.columns]
+        if available_cols:
+            docs_df = docs_df.merge(
+                text_scan_df[available_cols + ["rel_path_norm"]],
+                on="rel_path_norm",
+                how="left",
+            )
+
+    text_docs_df = docs_df[docs_df["classification"] == "Text-based"].copy()
+    if "text_quality_label" not in text_docs_df.columns:
+        text_docs_df["text_quality_label"] = ""
+    else:
+        text_docs_df["text_quality_label"] = text_docs_df["text_quality_label"].fillna("").astype(str)
     text_docs_df["doc_label"] = text_docs_df.apply(_build_doc_label, axis=1)
     text_docs_df = text_docs_df.sort_values("doc_label")
-    other_docs = max(total_docs - len(text_docs_df), 0)
 
-    st.markdown("### Latest probe coverage")
-    metric_cols = st.columns(2)
-    metric_cols[0].metric("100% text-based docs", f"{len(text_docs_df):,}")
-    metric_cols[1].metric("Mixed or no-text docs", f"{other_docs:,}")
-    _pie_chart(len(text_docs_df), other_docs)
+    verified_df = text_docs_df[text_docs_df["text_quality_label"] == "GOOD"].copy()
+    suspicious_df = text_docs_df[text_docs_df["text_quality_label"].isin(["EMPTY", "LOW"])].copy()
+    unscanned_df = text_docs_df[text_docs_df["text_quality_label"] == ""].copy()
+
+    st.markdown("### Text scan overview")
+    metric_cols = st.columns(3)
+    metric_cols[0].metric("Probe text-based docs", f"{len(text_docs_df):,}")
+    metric_cols[1].metric("Verified text (GOOD)", f"{len(verified_df):,}")
+    metric_cols[2].metric("Suspicious text layers", f"{len(suspicious_df):,}")
+
+    st.markdown("### Content type mix (verified text)")
+    _bar_chart(verified_df)
 
     st.markdown(
         """
-        **Next step:** pick a document to see the PDF (left) and the extracted text (right). The text shown
-        here is extracted live from your local PDF file, so if the PDF has been moved or renamed you may see
-        a warning instead of the preview.
+        **How to use this page:** start with **Verified Text** to review documents that are truly text-ready.
+        Then move to **Suspicious Text Layer** to catch PDFs that *look* text-based but have empty or junk
+        text layers. Those files are strong candidates for relabeling as **IMAGE_OF_TEXT_PDF**.
         """
     )
 
     if text_docs_df.empty:
         st.info(
-            "No documents in the latest probe run are 100% text-based yet. "
+            "No documents in the latest probe run are text-based yet. "
             "Run OCR or wait for more text-ready files, then refresh this page."
         )
         st.stop()
 
+    tabs = st.tabs(["Verified Text (GOOD)", "Suspicious Text Layer (EMPTY/LOW)", "Unscanned / No Text Scan Yet"])
     search_value = st.text_input("Search relative path", value="")
     filtered_df = text_docs_df
     if search_value:
@@ -233,6 +305,42 @@ def main() -> None:
             st.warning("No text-based documents matched that relative path search.")
             st.stop()
 
+    with tabs[0]:
+        st.markdown("#### Verified text PDFs")
+        st.dataframe(
+            _ensure_columns(verified_df, ["rel_path", "page_count", "content_type_pred", "text_quality_score"]),
+            use_container_width=True,
+        )
+
+    with tabs[1]:
+        st.markdown("#### Suspicious text layer candidates")
+        if suspicious_df.empty:
+            st.info("No suspicious text-layer PDFs found in the latest probe + text scan.")
+        else:
+            suspicious_table = suspicious_df[
+                ["rel_path", "avg_chars_per_text_page", "alpha_ratio", "gibberish_score", "text_quality_label"]
+            ]
+            suspicious_table = _ensure_columns(
+                suspicious_table,
+                ["rel_path", "avg_chars_per_text_page", "alpha_ratio", "gibberish_score", "text_quality_label"],
+            ).sort_values("gibberish_score", ascending=False)
+            st.dataframe(suspicious_table, use_container_width=True)
+            csv_bytes = suspicious_df[["rel_path"]].assign(suggested_label="IMAGE_OF_TEXT_PDF").to_csv(index=False).encode("utf-8")
+            st.download_button(
+                "Download suspicious list (labeling queue)",
+                data=csv_bytes,
+                file_name="suspicious_text_layers.csv",
+                mime="text/csv",
+            )
+
+    with tabs[2]:
+        st.markdown("#### Text-based PDFs without text scan signals")
+        if unscanned_df.empty:
+            st.success("All text-based PDFs have text scan signals.")
+        else:
+            st.dataframe(_ensure_columns(unscanned_df, ["rel_path", "page_count"]), use_container_width=True)
+
+    st.markdown("### Document preview")
     selected_label = st.selectbox(
         "Text-based document to preview",
         filtered_df["doc_label"].tolist(),
@@ -287,20 +395,44 @@ def main() -> None:
             _render_pdf(pdf_path)
 
     with preview_cols[1]:
-        st.markdown("#### Extracted text")
-        with st.spinner("Extracting text..."):
-            mtime = pdf_path.stat().st_mtime
-            extracted_text, error = cached_extract_text(str(pdf_path), mtime, int(max_pages))
-        if error:
-            st.warning(error)
-        else:
-            st.text_area("", extracted_text, height=800)
-            st.download_button(
-                "Download extracted text",
-                data=extracted_text.encode("utf-8"),
-                file_name=f"{pdf_path.stem}_extracted.txt",
-                mime="text/plain",
-            )
+        st.markdown("#### Signals")
+        signal_cols = st.columns(2)
+        signal_cols[0].metric("Text quality", str(selected_row.get("text_quality_label") or "Unknown"))
+        signal_cols[1].metric("Quality score", f"{float(selected_row.get('text_quality_score') or 0):.2f}")
+        st.caption(
+            f"Content type: {selected_row.get('content_type_pred') or 'Unknown'} "
+            f"(confidence {float(selected_row.get('content_type_confidence') or 0):.2f})"
+        )
+        st.markdown(
+            f"""
+            - **Total words:** {int(pd.to_numeric(selected_row.get("total_words"), errors="coerce") or 0)}
+            - **Alpha ratio:** {float(selected_row.get("alpha_ratio") or 0):.2f}
+            - **Gibberish score:** {float(selected_row.get("gibberish_score") or 0):.2f}
+            """
+        )
+
+        show_snippet = False
+        if isinstance(selected_row.get("text_snippet"), str) and selected_row.get("text_snippet"):
+            show_snippet = st.checkbox("Show stored snippet (sanitized)", value=False)
+        if show_snippet:
+            st.text_area("Snippet", selected_row.get("text_snippet") or "", height=140)
+
+        st.markdown("#### Optional extracted text preview")
+        st.caption("This preview is generated live from your local PDF. It is hidden by default.")
+        if st.checkbox("Show extracted text preview", value=False):
+            with st.spinner("Extracting text..."):
+                mtime = pdf_path.stat().st_mtime
+                extracted_text, error = cached_extract_text(str(pdf_path), mtime, int(max_pages))
+            if error:
+                st.warning(error)
+            else:
+                st.text_area("", extracted_text, height=500)
+                st.download_button(
+                    "Download extracted text",
+                    data=extracted_text.encode("utf-8"),
+                    file_name=f"{pdf_path.stem}_extracted.txt",
+                    mime="text/plain",
+                )
 
 
 if __name__ == "__main__":
