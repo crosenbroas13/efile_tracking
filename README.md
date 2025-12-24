@@ -45,8 +45,7 @@ This toolkit inventories DOJ document drops and runs light-touch probes to estim
 ## Streamlit QA dashboards
 - Multipage launcher: `streamlit run app/Home.py -- --out ./outputs`. Use `--server.headless true` if you are running on a remote machine and need a URL to connect from your browser.
 - Pages read stored artifacts only; they do not rerun inventories or probes. Point them at `./outputs` to pick up the latest versioned runs via `LATEST.json`.
-- What you see: the Home page lists available inventories and probe runs. The QA pages chart text readiness, dark-page ratios, and basic file counts so stakeholders can understand what is ready for review without installing Python tools themselves. The Probe Run Comparison page highlights differences between two probe runs so teams can explain what changed over time.
-- Document preview: the Probe Document Viewer page always uses the latest probe run, then lets you pick a PDF and preview it locally in the browser. This keeps the workflow simple for non-technical reviewers while avoiding any external sharing.
+- What you see: the Home page lists available inventories and probe runs. The QA pages chart text readiness, dark-page ratios, and basic file counts so stakeholders can understand what is ready for review without installing Python tools themselves. The Document Filter page adds a table-driven view for narrowing to long, low-text, or flagged files, and the Probe Run Comparison page highlights differences between two probe runs so teams can explain what changed over time.
 - Data handling: Streamlit reads only from your local `outputs/` folder and never uploads files. You can safely share screenshots or exported charts because the app avoids transmitting underlying documents.
 - Troubleshooting: if Streamlit cannot find data, rerun `python -m doj_doc_explorer.cli self-check` to create expected folders, then rerun an inventory or probe. The CLI will print the exact command needed to launch the dashboards with your chosen output path.
 
@@ -60,6 +59,7 @@ This toolkit inventories DOJ document drops and runs light-touch probes to estim
 - **Encrypted or unreadable PDFs**: they are logged in the run log and skipped; probes continue.
 - **Windows/Mac absolute paths**: the CLI resolves `~` and relative paths; prefer absolute paths if you keep datasets outside the repo.
 - **Missing dependencies**: ensure `pip install -e .` completed; `pyarrow` is used when present for parquet outputs.
+- **Mostly-black metrics show `n/a` or warnings**: the black-page probe renders PDFs using PyMuPDF (`fitz`) or `pdf2image`. If neither is available, the dashboard will warn and omit mostly-black ratios until a PDF rendering dependency is installed.
 
 ## Safety statement
 - No network calls or telemetry are made.
@@ -83,9 +83,9 @@ Use this checklist to understand what lives where. It is written in plain langua
   - `app/Home.py`: Landing page that introduces the dashboards and explains how to navigate them safely.
   - `app/qa_fileimport.py`: Main Streamlit view for browsing inventories, highlighting potential issues, and exporting a PDF summary.
   - `app/pages/01_Inventory_QA.py`: Thin wrapper that hosts the inventory QA view inside the multipage app.
-- `app/pages/02_Probe_QA.py`: Probe results viewer with charts and download buttons for the readiness metrics.
-- `app/pages/03_Probe_Run_Compare.py`: Side-by-side comparison page for two probe runs, highlighting shifts in totals and document-level readiness.
-- `app/pages/04_Probe_Document_Viewer.py`: Document preview page that uses the latest probe run and lets reviewers pick a PDF to view safely in the browser.
+  - `app/pages/02_Probe_QA.py`: Probe results viewer with charts and download buttons for the readiness metrics.
+  - `app/pages/03_Probe_Run_Compare.py`: Side-by-side comparison page for two probe runs, highlighting shifts in totals and document-level readiness.
+  - `app/pages/04_Document_Filter.py`: Filterable document table that merges probe outputs with inventory metadata so reviewers can quickly spot long, low-text, or unusual files without opening the PDFs.
 
 - **Core package (`src/` folder)**
   - `src/__init__.py`: Exposes the `InventoryRunner` and result dataclass for simple imports.

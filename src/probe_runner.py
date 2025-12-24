@@ -63,14 +63,16 @@ def run_probe(config: ProbeConfig) -> Tuple[pd.DataFrame, pd.DataFrame, Dict]:
             black_docs.drop(columns=["rel_path", "abs_path", "top_level_folder"]), on="doc_id", how="left", suffixes=("", "_black")
         )
         base_docs["pages_mostly_black"] = base_docs.get("pages_mostly_black")
+        base_docs["pages_black_checked"] = base_docs.get("pages_black_checked")
         base_docs["mostly_black_pct"] = base_docs.get("mostly_black_pct")
         base_docs["black_ratio_avg"] = base_docs.get("black_ratio_avg")
     for col, default in [
         ("page_count", 0),
         ("pages_with_text", 0),
         ("text_coverage_pct", 0.0),
+        ("pages_black_checked", 0),
         ("pages_mostly_black", 0),
-        ("mostly_black_pct", 0.0),
+        ("mostly_black_pct", None),
         ("black_ratio_avg", 0.0),
         ("notes", ""),
     ]:
