@@ -117,8 +117,11 @@ def list_pdfs(
     return pdf_df.reset_index(drop=True), ignored_counts, ignored_mime_counts
 
 
-def classify_document(text_coverage_pct: float, config: ProbeConfig) -> str:
-    if text_coverage_pct >= config.doc_text_pct_text:
+def classify_document(text_coverage_pct: float, avg_text_chars_per_page: float, config: ProbeConfig) -> str:
+    if (
+        text_coverage_pct >= config.doc_text_pct_text
+        and avg_text_chars_per_page >= config.doc_text_min_chars_per_page
+    ):
         return "Text-based"
     if text_coverage_pct < config.doc_text_pct_scanned:
         return "Scanned"
@@ -213,8 +216,12 @@ def evaluate_readiness(
             )
         page_count = text_result.get("page_count", 0)
         pages_with_text = sum(1 for p in pages_info if p.get("has_text"))
+        total_text_chars = sum(p.get("text_char_count", 0) for p in pages_info)
         text_coverage_pct = (pages_with_text / page_count) if page_count else 0
-        classification = classify_document(text_coverage_pct, config) if page_count else "Unknown"
+        avg_text_chars_per_page = (total_text_chars / page_count) if page_count else 0
+        classification = (
+            classify_document(text_coverage_pct, avg_text_chars_per_page, config) if page_count else "Unknown"
+        )
         doc_records.append(
             {
                 "doc_id": doc_id,
@@ -223,6 +230,8 @@ def evaluate_readiness(
                 "top_level_folder": row_dict.get("top_level_folder"),
                 "page_count": page_count,
                 "pages_with_text": pages_with_text,
+                "total_text_chars": total_text_chars,
+                "avg_text_chars_per_page": avg_text_chars_per_page,
                 "text_coverage_pct": text_coverage_pct,
                 "classification": classification,
                 "notes": "; ".join(doc_errors) if doc_errors else "",

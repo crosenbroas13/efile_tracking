@@ -8,9 +8,11 @@ from src.probe_readiness import classify_document, stable_doc_id
 
 def test_document_classification_thresholds():
     config = ProbeConfig(inventory_path=Path("dummy"), output_root=Path("out"))
-    assert classify_document(0.95, config) == "Text-based"
-    assert classify_document(0.05, config) == "Scanned"
-    assert classify_document(0.5, config) == "Mixed"
+    assert classify_document(0.95, 250, config) == "Text-based"
+    assert classify_document(0.95, 100, config) == "Mixed"
+    assert classify_document(0.05, 10, config) == "Scanned"
+    assert classify_document(0.5, 250, config) == "Text-based"
+    assert classify_document(0.3, 250, config) == "Mixed"
 
 
 def test_stable_doc_id_prefer_sha():

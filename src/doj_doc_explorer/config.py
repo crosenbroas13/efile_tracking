@@ -38,8 +38,9 @@ class ProbePaths:
 class ProbeRunConfig:
     paths: ProbePaths
     text_char_threshold: int = 25
-    doc_text_pct_text: float = 0.90
+    doc_text_pct_text: float = 0.50
     doc_text_pct_scanned: float = 0.10
+    doc_text_min_chars_per_page: int = 200
     fixed_black_intensity: int = 40
     mostly_black_ratio_fixed: float = 0.90
     adaptive_percentile: float = 10.0
