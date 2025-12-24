@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import hashlib
 import logging
 import random
-from pathlib import Path
+import shutil
+import zipfile
+from pathlib import Path, PurePosixPath
 from typing import Dict, Iterable, List, Optional
 
 import importlib.util
@@ -29,8 +32,47 @@ def stable_doc_id(row: pd.Series) -> str:
     return f"{rel_path}|{size}|{modified}"
 
 
+def _safe_zip_entry_path(entry_name: str) -> Path:
+    entry = PurePosixPath(entry_name)
+    parts = [part for part in entry.parts if part not in ("", ".", "..")]
+    return Path(*parts) if parts else Path("entry.pdf")
+
+
+def _zip_extract_dir(zip_path: Path, extract_root: Path) -> Path:
+    digest = hashlib.sha256(str(zip_path).encode("utf-8")).hexdigest()[:8]
+    return extract_root / f"{zip_path.stem}_{digest}"
+
+
+def _extract_zip_entry(zip_path: Path, entry_name: str, extract_root: Path) -> Path:
+    safe_entry = _safe_zip_entry_path(entry_name)
+    extract_dir = _zip_extract_dir(zip_path, extract_root)
+    target_path = extract_dir / safe_entry
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(zip_path) as archive:
+        with archive.open(entry_name) as source, target_path.open("wb") as target:
+            shutil.copyfileobj(source, target)
+    return target_path
+
+
+def _split_zip_abs_path(abs_path: str) -> Optional[tuple[Path, str]]:
+    if "::" not in abs_path:
+        return None
+    zip_part, entry_part = abs_path.split("::", 1)
+    if not zip_part or not entry_part:
+        return None
+    return Path(zip_part), entry_part
+
+
+def _resolve_extract_root(inventory_path: Path, extract_root: Optional[Path]) -> Path:
+    if extract_root is not None:
+        return Path(extract_root) / "probe_extracts"
+    return inventory_path.parent / "probe_extracts"
+
+
 def list_pdfs(
-    inventory_path: Path, only_top_folder: Optional[str] = None
+    inventory_path: Path,
+    only_top_folder: Optional[str] = None,
+    extract_root: Optional[Path] = None,
 ) -> tuple[pd.DataFrame, Dict[str, int], Dict[str, int]]:
     df = pd.read_csv(inventory_path)
     if only_top_folder:
@@ -46,6 +88,32 @@ def list_pdfs(
         ignored_mime_counts = non_pdf_df[mime_col].fillna("").value_counts(dropna=False).to_dict()
 
     pdf_df["doc_id"] = pdf_df.apply(stable_doc_id, axis=1)
+    pdf_df["probe_path"] = pdf_df["abs_path"]
+    pdf_df["probe_error"] = ""
+
+    zip_mask = pdf_df["abs_path"].fillna("").str.contains("::")
+    if zip_mask.any():
+        extract_dir = _resolve_extract_root(inventory_path, extract_root)
+        extract_dir.mkdir(parents=True, exist_ok=True)
+        for idx, row in pdf_df[zip_mask].iterrows():
+            abs_path = str(row.get("abs_path", ""))
+            split = _split_zip_abs_path(abs_path)
+            if not split:
+                pdf_df.at[idx, "probe_path"] = None
+                pdf_df.at[idx, "probe_error"] = "zip entry path could not be parsed"
+                continue
+            zip_path, entry_name = split
+            if not zip_path.exists():
+                pdf_df.at[idx, "probe_path"] = None
+                pdf_df.at[idx, "probe_error"] = f"zip archive not found: {zip_path}"
+                continue
+            try:
+                extracted = _extract_zip_entry(zip_path, entry_name, extract_dir)
+                pdf_df.at[idx, "probe_path"] = str(extracted)
+            except (KeyError, OSError, RuntimeError, zipfile.BadZipFile) as exc:
+                LOGGER.warning("Failed to extract %s from %s: %s", entry_name, zip_path, exc)
+                pdf_df.at[idx, "probe_path"] = None
+                pdf_df.at[idx, "probe_error"] = f"zip extract error: {exc}"
     return pdf_df.reset_index(drop=True), ignored_counts, ignored_mime_counts
 
 
@@ -114,13 +182,22 @@ def evaluate_readiness(
     for row in pdf_list:
         row_dict = row._asdict()
         doc_id = row_dict["doc_id"]
-        abs_path = Path(row_dict["abs_path"])
+        probe_path_value = row_dict.get("probe_path") or row_dict.get("abs_path")
         text_result = {"pages": [], "page_count": 0}
         doc_errors: List[str] = []
+        if row_dict.get("probe_error"):
+            doc_errors.append(str(row_dict["probe_error"]))
         if not config.skip_text_check:
-            text_result = _process_pdf_text(abs_path, config, max_pages=config.max_pages)
-            if text_result.get("error"):
-                doc_errors.append(text_result["error"])
+            if not probe_path_value:
+                doc_errors.append("Probe path missing for PDF")
+            else:
+                abs_path = Path(probe_path_value)
+                if not abs_path.exists():
+                    doc_errors.append(f"Probe path does not exist: {abs_path}")
+                else:
+                    text_result = _process_pdf_text(abs_path, config, max_pages=config.max_pages)
+                    if text_result.get("error"):
+                        doc_errors.append(text_result["error"])
         pages_info = text_result.get("pages", [])
         for page_data in pages_info:
             records.append(

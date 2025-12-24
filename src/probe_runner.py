@@ -16,7 +16,7 @@ LOGGER = logging.getLogger(__name__)
 def run_probe(config: ProbeConfig) -> Tuple[pd.DataFrame, pd.DataFrame, Dict]:
     start_time = time.time()
     pdfs, ignored_counts, ignored_mime_counts = list_pdfs(
-        config.inventory_path, config.only_top_folder
+        config.inventory_path, config.only_top_folder, extract_root=config.output_root
     )
 
     text_pages = pd.DataFrame()

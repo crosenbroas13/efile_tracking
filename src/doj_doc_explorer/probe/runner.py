@@ -16,7 +16,11 @@ from .outputs import write_probe_outputs
 
 def run_probe(config: ProbeRunConfig) -> Tuple[pd.DataFrame, pd.DataFrame, Dict]:
     start_time = time.time()
-    pdfs, ignored_counts, ignored_mime_counts = list_pdfs(config.paths.inventory, config.only_top_folder)
+    pdfs, ignored_counts, ignored_mime_counts = list_pdfs(
+        config.paths.inventory,
+        config.only_top_folder,
+        extract_root=config.paths.outputs_root,
+    )
 
     text_pages = pd.DataFrame()
     text_docs = pd.DataFrame()
