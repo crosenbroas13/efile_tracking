@@ -32,6 +32,7 @@ This toolkit inventories DOJ document drops and runs light-touch probes to estim
 ## Inventory workflow
 - Command: `python -m doj_doc_explorer.cli inventory run --root <DATA_ROOT> --out ./outputs [--hash sha256|md5|sha1|none] [--ignore ...] [--max-files N]`
 - Outputs (versioned): `outputs/inventory/<run_id>/inventory.csv`, `inventory_summary.json`, `run_log.json`, plus `outputs/inventory/LATEST.json` pointing at the newest run.
+- **Human-friendly run IDs**: the `<run_id>` now includes the **main folder name you scanned** (sanitized for safe filenames). This keeps the download-date folder visible in the output path so non-technical reviewers can tell which dataset an inventory belongs to at a glance.
 - Backward compatibility: a copy of `inventory.csv` and `inventory_summary.json` is still written to `outputs/` for older dashboards.
 - Deterministic IDs: `file_id` favors the SHA-256 file hash when requested; otherwise it uses the path/size/mtime triple.
 - **Large ZIP visibility**: the inventory now reads ZIP file listings without extracting them. Entries appear as `archive.zip::path/inside/file.pdf`, so you can see what is inside oversized archives without opening them manually.

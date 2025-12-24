@@ -64,8 +64,11 @@ class ProbeRunConfig:
         return data
 
 
-def new_run_id(prefix: str) -> str:
-    return f"{prefix}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+def new_run_id(prefix: str, label: str | None = None) -> str:
+    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    if label:
+        return f"{prefix}_{label}_{timestamp}"
+    return f"{prefix}_{timestamp}"
 
 
 __all__ = [
