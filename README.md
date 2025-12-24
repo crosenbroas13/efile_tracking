@@ -40,6 +40,7 @@ This toolkit inventories DOJ document drops and runs light-touch probes to estim
 - Command: `python -m doj_doc_explorer.cli probe run --inventory <PATH|RUN_ID|LATEST> --out ./outputs [--dpi 72] [--text-threshold 25] [--mostly-black 0.90]`
 - Outputs (versioned): `outputs/probes/<run_id>/readiness_pages.parquet|csv`, `readiness_docs.parquet|csv`, `probe_summary.json`, `probe_run_log.json`, plus `outputs/probes/LATEST.json` pointing at the latest run and recording the inventory used.
 - Legacy compatibility: probes can still read a flat `outputs/inventory.csv` or a specific run folder.
+- ZIP-aware probing: when the inventory lists `archive.zip::path/inside/file.pdf`, the probe extracts **only the PDF entries** into `outputs/probe_extracts/` (or the configured output root) so they can be analyzed without unpacking the full ZIP.
 
 ## Streamlit QA dashboards
 - Multipage launcher: `streamlit run app/Home.py -- --out ./outputs`. Use `--server.headless true` if you are running on a remote machine and need a URL to connect from your browser.

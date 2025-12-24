@@ -227,7 +227,14 @@ def evaluate_black_pages(
     page_lookup = pages_df.set_index(["doc_id", "page_num"]) if not pages_df.empty else None
 
     for row in pdfs.itertuples(index=False):
-        doc_path = Path(row.abs_path)
+        probe_path = getattr(row, "probe_path", None) or row.abs_path
+        if not probe_path:
+            errors.append({"doc_id": row.doc_id, "path": row.abs_path, "errors": ["Probe path missing for PDF"]})
+            continue
+        doc_path = Path(probe_path)
+        if not doc_path.exists():
+            errors.append({"doc_id": row.doc_id, "path": row.abs_path, "errors": [f"Probe path does not exist: {doc_path}"]})
+            continue
         try:
             page_total = row.page_count if hasattr(row, "page_count") and row.page_count else None
         except Exception:
