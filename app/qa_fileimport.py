@@ -18,8 +18,8 @@ import streamlit as st
 from fpdf import FPDF
 
 from src.io_utils import (
-    DEFAULT_OUT_DIR,
     format_run_label,
+    get_default_out_dir,
     list_inventory_candidates,
     load_inventory_df,
     load_run_log,
@@ -124,14 +124,6 @@ def _build_pdf_report(summary: Dict, folder_counts: pd.DataFrame, type_counts: p
     return pdf.output(dest="S").encode("latin1")
 
 
-def _initial_out_dir_from_args() -> Path:
-    args = sys.argv[1:]
-    for idx, arg in enumerate(args):
-        if arg in {"--out", "-o"} and idx + 1 < len(args):
-            return normalize_out_dir(args[idx + 1])
-    return DEFAULT_OUT_DIR
-
-
 def main() -> None:
     st.title("QA File Import")
     st.caption("Local-only dashboard that summarizes inventory outputs without reading file contents.")
@@ -152,7 +144,7 @@ def main() -> None:
         st.info("More pages can be added here as the toolkit grows.")
         return
 
-    default_out = _initial_out_dir_from_args()
+    default_out = get_default_out_dir()
     st.markdown("#### Choose an inventory to review")
     st.caption(
         "Pick an output folder to auto-discover inventories. If you prefer, you can then upload an inventory.csv directly "

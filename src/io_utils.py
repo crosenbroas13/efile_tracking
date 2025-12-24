@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import os
+import sys
 from functools import lru_cache
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -22,6 +24,36 @@ except Exception:  # pragma: no cover - fallback for non-Streamlit contexts
 
 
 DEFAULT_OUT_DIR = Path("./outputs")
+
+
+def _parse_out_dir_from_args(args: List[str] | None = None) -> Optional[Path]:
+    """Pull an output directory from CLI args like --out /path or -o /path."""
+
+    args = args if args is not None else sys.argv[1:]
+    for idx, arg in enumerate(args):
+        if arg in {"--out", "-o"} and idx + 1 < len(args):
+            return normalize_out_dir(args[idx + 1])
+    return None
+
+
+def get_default_out_dir(args: List[str] | None = None) -> Path:
+    """Resolve the output directory using env vars, CLI args, or defaults.
+
+    Order of preference:
+    1) DOJ_OUTPUT_DIR/DOJ_OUTPUT_PATH environment variable
+    2) CLI args (--out or -o)
+    3) ./outputs
+    """
+
+    env_path = os.environ.get("DOJ_OUTPUT_DIR") or os.environ.get("DOJ_OUTPUT_PATH")
+    if env_path:
+        return normalize_out_dir(env_path)
+
+    arg_path = _parse_out_dir_from_args(args)
+    if arg_path:
+        return arg_path
+
+    return DEFAULT_OUT_DIR
 
 
 def _ensure_path(path: Path | str) -> Path:

@@ -9,13 +9,10 @@ APP_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(APP_ROOT) not in sys.path:
     sys.path.insert(0, str(APP_ROOT))
 
-from src.io_utils import load_inventory_df  # noqa: E402
+from src.io_utils import get_default_out_dir, load_inventory_df  # noqa: E402
 from src.probe_io import list_probe_runs, load_probe_run  # noqa: E402
 
 st.set_page_config(page_title="Document Filter", layout="wide")
-
-DEFAULT_OUT_DIR = Path("./outputs")
-
 
 @st.cache_data(show_spinner=False)
 def cached_list_probe_runs(out_dir_str: str) -> List[Dict]:
@@ -136,7 +133,7 @@ def main():
 
     picker = st.container()
     pick_cols = picker.columns([2, 2])
-    out_dir_text = pick_cols[0].text_input("Output folder", value=str(DEFAULT_OUT_DIR))
+    out_dir_text = pick_cols[0].text_input("Output folder", value=str(get_default_out_dir()))
     runs = cached_list_probe_runs(out_dir_text)
     if not runs:
         picker.warning("No probe runs detected under this output folder yet.")
