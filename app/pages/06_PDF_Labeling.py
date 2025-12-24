@@ -27,8 +27,8 @@ from src.doj_doc_explorer.pdf_type.labels import (
 )
 from src.doj_doc_explorer.utils.paths import normalize_rel_path
 from src.io_utils import (
-    DEFAULT_OUT_DIR,
     format_run_label,
+    get_default_out_dir,
     list_inventory_candidates,
     load_inventory_df,
     normalize_out_dir,
@@ -50,14 +50,6 @@ def cached_list_probe_runs(out_dir_str: str) -> list[Dict]:
 @st.cache_data(show_spinner=False)
 def cached_load_probe_run(out_dir_str: str, run_id: str):
     return load_probe_run(out_dir_str, run_id)
-
-
-def _initial_out_dir_from_args() -> Path:
-    args = sys.argv[1:]
-    for idx, arg in enumerate(args):
-        if arg in {"--out", "-o"} and idx + 1 < len(args):
-            return normalize_out_dir(args[idx + 1])
-    return DEFAULT_OUT_DIR
 
 
 def _compute_doc_id_from_row(row: pd.Series) -> str:
@@ -210,7 +202,7 @@ selector = st.container()
 with selector:
     input_cols = st.columns([2, 2])
     with input_cols[0]:
-        out_dir_text = st.text_input("Output folder", value=str(_initial_out_dir_from_args()))
+        out_dir_text = st.text_input("Output folder", value=str(get_default_out_dir()))
         out_dir = normalize_out_dir(out_dir_text)
     with input_cols[1]:
         selected_path, selection_label = _build_inventory_selector(out_dir)
