@@ -14,12 +14,13 @@ st.caption("Landing page for inventory and probe review dashboards.")
 
 st.markdown(
     """
-    Use the navigation sidebar to open the **Inventory QA**, **Probe QA**, **Probe Run Comparison**, or
-    **Probe Document Viewer** pages.
+    Use the navigation sidebar to open the **Inventory QA**, **Probe QA**, **Probe Run Comparison**,
+    **Probe Document Viewer**, or **PDF Labeling** pages.
     These views stay local to your machine and never upload document contents. They help
     non-technical reviewers quickly spot health issues and understand changes between runs
     before deeper processing. The document viewer adds an optional PDF preview so you can
-    confirm individual files without leaving the dashboard.
+    confirm individual files without leaving the dashboard. The PDF labeling view guides
+    reviewers through classifying PDFs and safely saves results to the master labels file.
     """
 )
 
