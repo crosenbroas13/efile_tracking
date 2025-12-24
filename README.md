@@ -53,7 +53,13 @@ This toolkit inventories DOJ document drops and runs light-touch probes to estim
 Use this workflow when you need a human-reviewed PDF type label that stays valid even if you rerun inventory or probe jobs later.
 
 - **Authoritative key**: labels attach to the document’s **relative path (`rel_path`)**, not the derived `doc_id`. This means the label stays attached even if a run ID or hash changes on rerun.
-- **Where labels live**: labels are stored in `outputs/labels/pdf_type_labels.csv` and always include the normalized `rel_path`, a label (`TEXT_PDF`, `IMAGE_PDF`, `MIXED_PDF`), and timestamps.
+- **Where labels live**: labels are stored in `outputs/labels/pdf_type_labels.csv` and always include the normalized `rel_path`, the **raw label** (`label_raw`), the **normalized label** (`label_norm`), and timestamps.
+- **Four-category taxonomy (plain-language)**:
+  - **TEXT_PDF**: a PDF that is already text-based.
+  - **IMAGE_OF_TEXT_PDF**: a PDF that looks like text but is stored as images (scans).
+  - **IMAGE_PDF**: a PDF made of non-text images (photos, forms, drawings).
+  - **MIXED_PDF**: a PDF with both real text and image-only pages.
+- **Legacy label normalization**: older `TEXT_PDF` entries are normalized to `IMAGE_OF_TEXT_PDF` so that past labels stay consistent with the new taxonomy. This preserves the original entry in `label_raw` while ensuring `label_norm` is consistent for reporting and training.
 - **Orphan handling**: if a file disappears in a new inventory, the label is kept but marked as *orphaned* in memory. It will not be used for training or prediction until the file returns, so nothing is silently lost.
 - **Safety for reruns**: every labeling, training, and prediction run writes a reconciliation report to `outputs/labels/label_reconciliation_<timestamp>.json`, so non-technical reviewers can see how many labels still match the latest inventory.
 - **Friendly labeling UI**: the Streamlit **PDF Labeling** page lets reviewers choose a PDF, apply a label, and save it to the master file without using the command line. This is the easiest path for non-technical reviewers who just need a guided form.
@@ -71,6 +77,18 @@ python -m doj_doc_explorer.cli pdf_type label \
   --rel-path "case_folder/scan_001.pdf" \
   --label TEXT_PDF \
   --overwrite
+
+# Preview a safe migration of the labels file (no changes, just a report).
+python -m doj_doc_explorer.cli pdf_type migrate \
+  --labels outputs/labels/pdf_type_labels.csv \
+  --inventory LATEST \
+  --dry-run
+
+# Write the migrated labels file (with an automatic backup).
+python -m doj_doc_explorer.cli pdf_type migrate \
+  --labels outputs/labels/pdf_type_labels.csv \
+  --inventory LATEST \
+  --write
 
 # Build a training CSV from labels that match the latest inventory.
 python -m doj_doc_explorer.cli pdf_type train --inventory LATEST

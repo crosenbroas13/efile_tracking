@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -11,7 +12,7 @@ import pandas as pd
 from .config import DEFAULT_OUTPUT_ROOT, InventoryConfig, ProbePaths, ProbeRunConfig
 from .inventory.runner import InventoryRunner
 from .probe.runner import run_probe_and_save
-from .utils.io import latest_inventory, latest_probe, load_table, self_check
+from .utils.io import latest_inventory, latest_probe, load_table, self_check, write_json
 from .utils.paths import normalize_rel_path
 from .pdf_type.labels import (
     LABEL_VALUES,
@@ -21,6 +22,7 @@ from .pdf_type.labels import (
     load_inventory,
     load_labels,
     match_labels_to_inventory,
+    normalize_label_value,
     normalize_labels_for_save,
     reconcile_labels,
     write_labels,
@@ -108,6 +110,14 @@ def build_parser() -> argparse.ArgumentParser:
     pdf_predict.add_argument("--output", default="", help="Optional output CSV path for predictions")
     pdf_predict.set_defaults(func=run_pdf_type_predict_cmd)
 
+    pdf_migrate = pdf_sub.add_parser("migrate", help="Normalize legacy PDF type labels safely")
+    pdf_migrate.add_argument("--labels", required=True, help="Path to the labels CSV to upgrade")
+    pdf_migrate.add_argument("--inventory", default="LATEST", help="Inventory path or run id or LATEST")
+    pdf_migrate.add_argument("--out", default=str(DEFAULT_OUTPUT_ROOT), help="Outputs root")
+    pdf_migrate.add_argument("--write", action="store_true", help="Write the upgraded labels file")
+    pdf_migrate.add_argument("--dry-run", action="store_true", help="Preview changes without writing")
+    pdf_migrate.set_defaults(func=run_pdf_type_migrate_cmd)
+
     return parser
 
 
@@ -181,7 +191,7 @@ def run_pdf_type_label_cmd(args: argparse.Namespace) -> None:
 
     existing = labels_df[labels_df["rel_path"] == rel_path]
     if not existing.empty:
-        existing_label = existing.iloc[0]["label"]
+        existing_label = existing.iloc[0].get("label_norm", "")
         print(f"Existing label for {rel_path}: {existing_label}")
         if not args.overwrite:
             if sys.stdin.isatty():
@@ -214,7 +224,8 @@ def run_pdf_type_label_cmd(args: argparse.Namespace) -> None:
 
     label_record = {
         "rel_path": rel_path,
-        "label": label_value,
+        "label_raw": label_value,
+        "label_norm": normalize_label_value(label_value),
         "labeled_at": datetime.now(timezone.utc).isoformat(),
         "source_inventory_run": inventory_id,
         "source_probe_run": args.source_probe_run or "",
@@ -265,7 +276,7 @@ def run_pdf_type_train_cmd(args: argparse.Namespace) -> None:
         print("No matched labels found. Training dataset was not generated.")
         return
     if args.exclude_mixed:
-        matched_df = matched_df[matched_df["label"] != "MIXED_PDF"]
+        matched_df = matched_df[matched_df["label_norm"] != "MIXED_PDF"]
 
     matched_df["doc_id"] = matched_df.apply(_compute_doc_id_from_row, axis=1)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -274,7 +285,8 @@ def run_pdf_type_train_cmd(args: argparse.Namespace) -> None:
 
     output_columns = [
         "rel_path",
-        "label",
+        "label_norm",
+        "label_raw",
         "doc_id",
         "top_level_folder",
         "size_bytes",
@@ -356,6 +368,62 @@ def run_pdf_type_predict_cmd(args: argparse.Namespace) -> None:
     output_df = unlabeled_df[[col for col in output_columns if col in unlabeled_df.columns]]
     output_df.to_csv(output_path, index=False)
     print(f"Wrote predictions for {len(output_df)} unlabeled PDFs to {output_path}")
+
+
+def run_pdf_type_migrate_cmd(args: argparse.Namespace) -> None:
+    outputs_root = Path(args.out)
+    inventory_path = resolve_inventory_path(args.inventory, outputs_root)
+    inventory_df = filter_pdf_inventory(load_inventory(inventory_path))
+    labels_csv = Path(args.labels)
+    labels_df = load_labels(labels_csv, inventory_df, write_back=False)
+
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    normalized_raw = labels_df["label_raw"].fillna("").astype(str).str.strip().str.upper()
+    normalized_labels = labels_df["label_raw"].map(normalize_label_value)
+
+    labels_with_raw_text = int((normalized_raw == "TEXT_PDF").sum())
+    labels_to_change = int((normalized_raw == "TEXT_PDF").sum())
+    labels_already_normalized = int(
+        (
+            normalized_raw.isin({"IMAGE_PDF", "MIXED_PDF", "IMAGE_OF_TEXT_PDF"})
+            & (normalized_labels == normalized_raw)
+        ).sum()
+    )
+    labels_unknown = int(pd.isna(normalized_labels).sum())
+    sample_changes = labels_df.loc[normalized_raw == "TEXT_PDF", "rel_path"].head(25).tolist()
+
+    report = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "inventory_reference": {
+            "run_id": inventory_identity(inventory_path),
+            "path": str(inventory_path),
+        },
+        "total_labels": int(len(labels_df)),
+        "labels_with_raw_TEXT_PDF": labels_with_raw_text,
+        "labels_to_change_TEXT_to_IMAGE_OF_TEXT": labels_to_change,
+        "labels_already_normalized": labels_already_normalized,
+        "labels_unknown": labels_unknown,
+        "sample_rel_paths_to_change": sample_changes,
+    }
+    report_path = labels_path(outputs_root).parent / f"migration_report_{timestamp}.json"
+    write_json(report_path, report)
+    print(f"Wrote migration report to {report_path}")
+
+    do_write = args.write and not args.dry_run
+    if not do_write:
+        print("Dry-run complete. Labels file was not modified.")
+        return
+
+    if labels_csv.exists():
+        backup_dir = labels_path(outputs_root).parent / "backups"
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        backup_path = backup_dir / f"pdf_type_labels_{timestamp}.csv"
+        shutil.copy2(labels_csv, backup_path)
+        print(f"Backup created at {backup_path}")
+
+    labels_df = normalize_labels_for_save(labels_df)
+    write_labels(labels_df, labels_csv)
+    print(f"Wrote upgraded labels to {labels_csv}")
 
 
 def run_qa_open(args: argparse.Namespace) -> None:

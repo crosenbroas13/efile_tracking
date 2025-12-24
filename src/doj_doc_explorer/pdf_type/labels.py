@@ -17,18 +17,19 @@ from ..utils.paths import normalize_rel_path
 LOGGER = logging.getLogger(__name__)
 
 LABELS_FILENAME = "pdf_type_labels.csv"
-LABEL_VALUES = {"TEXT_PDF", "IMAGE_PDF", "MIXED_PDF"}
+LABEL_VALUES = {"TEXT_PDF", "IMAGE_OF_TEXT_PDF", "IMAGE_PDF", "MIXED_PDF"}
 LABELING_REQUIRED_COLUMNS = [
     "rel_path",
-    "label",
+    "label_raw",
+    "label_norm",
     "labeled_at",
-    "source_inventory_run",
-    "source_probe_run",
 ]
 LABELING_OPTIONAL_COLUMNS = [
-    "doc_id_at_label_time",
-    "sha256_at_label_time",
     "notes",
+    "source_inventory_run",
+    "source_probe_run",
+    "sha256_at_label_time",
+    "doc_id_at_label_time",
     "labeling_version",
 ]
 
@@ -57,19 +58,26 @@ def load_inventory(inventory_path: Path) -> pd.DataFrame:
     return df
 
 
-def load_labels(labels_csv: Path, inventory_df: pd.DataFrame) -> pd.DataFrame:
+def load_labels(labels_csv: Path, inventory_df: pd.DataFrame, *, write_back: bool = True) -> pd.DataFrame:
     if not labels_csv.exists():
         return _empty_labels()
     labels_df = pd.read_csv(labels_csv)
+    upgrade_needed = _missing_required_columns(labels_df)
     labels_df = _ensure_label_columns(labels_df)
     if "rel_path" in labels_df.columns:
         labels_df["rel_path"] = labels_df["rel_path"].astype(str).map(normalize_rel_path)
-    labels_df["label"] = labels_df["label"].fillna("").astype(str).str.upper().str.strip()
+    labels_df["label_raw"] = labels_df["label_raw"].fillna("").astype(str)
+    labels_df["label_norm"] = labels_df["label_raw"].map(normalize_label_value)
+    if "label" in labels_df.columns:
+        labels_df["label"] = labels_df["label"].fillna(labels_df["label_raw"]).astype(str)
 
     updated_df, recovered = _recover_rel_paths(labels_df, inventory_df)
     if recovered:
         for message in recovered:
             LOGGER.info(message)
+        if write_back:
+            write_labels(updated_df, labels_csv)
+    if upgrade_needed and write_back:
         write_labels(updated_df, labels_csv)
     return updated_df
 
@@ -169,13 +177,27 @@ def reconcile_labels(
 
 def _ensure_label_columns(labels_df: pd.DataFrame) -> pd.DataFrame:
     labels_df = labels_df.copy()
-    for column in LABELING_REQUIRED_COLUMNS:
-        if column not in labels_df.columns:
-            labels_df[column] = ""
+    if "rel_path" not in labels_df.columns:
+        labels_df["rel_path"] = ""
+    if "label_raw" not in labels_df.columns:
+        if "label" in labels_df.columns:
+            labels_df["label_raw"] = labels_df["label"]
+        elif "label_norm" in labels_df.columns:
+            labels_df["label_raw"] = labels_df["label_norm"]
+        else:
+            labels_df["label_raw"] = ""
+    if "label_norm" not in labels_df.columns:
+        labels_df["label_norm"] = pd.NA
+    if "labeled_at" not in labels_df.columns:
+        labels_df["labeled_at"] = ""
     for column in LABELING_OPTIONAL_COLUMNS:
         if column not in labels_df.columns:
             labels_df[column] = ""
-    labels_df = labels_df[LABELING_REQUIRED_COLUMNS + LABELING_OPTIONAL_COLUMNS]
+    if "label" in labels_df.columns:
+        labels_df["label"] = labels_df["label"].fillna(labels_df["label_raw"])
+    ordered = [col for col in LABELING_REQUIRED_COLUMNS + LABELING_OPTIONAL_COLUMNS if col in labels_df.columns]
+    remaining = [col for col in labels_df.columns if col not in ordered]
+    labels_df = labels_df[ordered + remaining]
     return labels_df
 
 
@@ -302,7 +324,10 @@ def inventory_identity(inventory_path: Path) -> str:
 def normalize_labels_for_save(labels_df: pd.DataFrame) -> pd.DataFrame:
     labels_df = labels_df.copy()
     labels_df["rel_path"] = labels_df["rel_path"].astype(str).map(normalize_rel_path)
-    labels_df["label"] = labels_df["label"].fillna("").astype(str).str.upper().str.strip()
+    labels_df["label_raw"] = labels_df["label_raw"].fillna("").astype(str)
+    labels_df["label_norm"] = labels_df["label_raw"].map(normalize_label_value)
+    if "label" in labels_df.columns:
+        labels_df["label"] = labels_df["label"].fillna(labels_df["label_raw"]).astype(str)
     return labels_df
 
 
@@ -310,6 +335,23 @@ def filter_pdf_inventory(inventory_df: pd.DataFrame) -> pd.DataFrame:
     if "extension" in inventory_df.columns:
         return inventory_df[inventory_df["extension"] == "pdf"].copy()
     return inventory_df.copy()
+
+
+def _missing_required_columns(labels_df: pd.DataFrame) -> bool:
+    return any(column not in labels_df.columns for column in LABELING_REQUIRED_COLUMNS)
+
+
+def normalize_label_value(value: object) -> Optional[str]:
+    normalized = str(value).strip().upper() if value is not None else ""
+    if normalized == "IMAGE_PDF":
+        return "IMAGE_PDF"
+    if normalized == "TEXT_PDF":
+        return "IMAGE_OF_TEXT_PDF"
+    if normalized == "MIXED_PDF":
+        return "MIXED_PDF"
+    if normalized == "IMAGE_OF_TEXT_PDF":
+        return "IMAGE_OF_TEXT_PDF"
+    return None
 
 
 __all__ = [
@@ -324,6 +366,7 @@ __all__ = [
     "load_inventory",
     "load_labels",
     "match_labels_to_inventory",
+    "normalize_label_value",
     "normalize_labels_for_save",
     "reconcile_labels",
     "write_labels",

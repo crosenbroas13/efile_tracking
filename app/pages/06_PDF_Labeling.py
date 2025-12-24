@@ -20,6 +20,7 @@ from src.doj_doc_explorer.pdf_type.labels import (
     labels_path,
     load_labels,
     match_labels_to_inventory,
+    normalize_label_value,
     normalize_labels_for_save,
     reconcile_labels,
     write_labels,
@@ -182,6 +183,19 @@ st.markdown(
     """
 )
 st.markdown(
+    """
+    **Label guide (plain language)**
+    - **TEXT_PDF**: real, selectable text (born-digital PDFs).
+    - **IMAGE_OF_TEXT_PDF**: looks like text but is actually scanned images.
+    - **IMAGE_PDF**: photos, scans, or forms that are not text-like.
+    - **MIXED_PDF**: some pages have real text and others are scanned images.
+    """
+)
+st.caption(
+    "Note: labels are saved with both the original selection (label_raw) and a normalized label "
+    "(label_norm) so legacy labels can be compared consistently across reruns."
+)
+st.markdown(
     f"""
     **Why the list is short:** this labeling queue only shows PDFs that are **{MAX_LABEL_PAGES} pages or fewer**.
     Short documents are faster to review and make a clean starter dataset for future ML training, so each label
@@ -253,7 +267,7 @@ inventory_ui = inventory_ui[
     (inventory_ui["page_count"] > 0) & (inventory_ui["page_count"] <= MAX_LABEL_PAGES)
 ].copy()
 inventory_ui = _add_folder_columns(inventory_ui)
-label_lookup = labels_df.set_index("rel_path")["label"].to_dict() if not labels_df.empty else {}
+label_lookup = labels_df.set_index("rel_path")["label_norm"].to_dict() if not labels_df.empty else {}
 inventory_ui["current_label"] = inventory_ui["rel_path"].map(label_lookup).fillna("")
 inventory_ui["is_labeled"] = inventory_ui["current_label"].astype(str).str.strip() != ""
 
@@ -400,7 +414,8 @@ if submitted and candidate_paths:
 
         label_record = {
             "rel_path": rel_path,
-            "label": str(label_value).upper(),
+            "label_raw": str(label_value).upper(),
+            "label_norm": normalize_label_value(label_value),
             "labeled_at": datetime.now(timezone.utc).isoformat(),
             "source_inventory_run": inventory_id,
             "source_probe_run": source_probe_run.strip(),
@@ -465,9 +480,9 @@ with tabs[1]:
         st.info("No labels have been matched to this inventory yet.")
     else:
         st.dataframe(
-            match_result.matched[["rel_path", "label", "labeled_at", "notes"]]
+            match_result.matched[["rel_path", "label_norm", "labeled_at", "notes"]]
             if "notes" in match_result.matched.columns
-            else match_result.matched[["rel_path", "label", "labeled_at"]],
+            else match_result.matched[["rel_path", "label_norm", "labeled_at"]],
             use_container_width=True,
         )
 
@@ -476,8 +491,8 @@ with tabs[2]:
         st.info("No orphaned labels detected.")
     else:
         st.dataframe(
-            match_result.orphaned[["rel_path", "label", "labeled_at", "notes"]]
+            match_result.orphaned[["rel_path", "label_norm", "labeled_at", "notes"]]
             if "notes" in match_result.orphaned.columns
-            else match_result.orphaned[["rel_path", "label", "labeled_at"]],
+            else match_result.orphaned[["rel_path", "label_norm", "labeled_at"]],
             use_container_width=True,
         )
