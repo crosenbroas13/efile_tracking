@@ -59,6 +59,7 @@ This toolkit inventories DOJ document drops and runs light-touch probes to estim
 - **Encrypted or unreadable PDFs**: they are logged in the run log and skipped; probes continue.
 - **Windows/Mac absolute paths**: the CLI resolves `~` and relative paths; prefer absolute paths if you keep datasets outside the repo.
 - **Missing dependencies**: ensure `pip install -e .` completed; `pyarrow` is used when present for parquet outputs.
+- **Mostly-black metrics show `n/a` or warnings**: the black-page probe renders PDFs using PyMuPDF (`fitz`) or `pdf2image`. If neither is available, the dashboard will warn and omit mostly-black ratios until a PDF rendering dependency is installed.
 
 ## Safety statement
 - No network calls or telemetry are made.
