@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
@@ -37,6 +38,40 @@ def write_pointer(root: Path, name: str, payload: Dict[str, Any]) -> Path:
 
 def load_pointer(root: Path, name: str) -> Dict[str, Any]:
     return read_json(root / name)
+
+
+def load_run_index(outputs_root: Path) -> Dict[str, Any]:
+    data = read_json(outputs_root / "run_index.json")
+    if not data:
+        return {"version": 1, "sources": {}}
+    if "version" not in data:
+        data["version"] = 1
+    if "sources" not in data:
+        data["sources"] = {}
+    return data
+
+
+def update_run_index(
+    outputs_root: Path,
+    *,
+    source_root: Path,
+    source_root_name: str,
+    inventory: Optional[Dict[str, Any]] = None,
+    probe: Optional[Dict[str, Any]] = None,
+) -> Path:
+    data = load_run_index(outputs_root)
+    key = str(source_root)
+    entry = data["sources"].get(key, {})
+    entry["source_root"] = key
+    entry["source_root_name"] = source_root_name
+    if inventory:
+        entry["inventory"] = inventory
+    if probe:
+        entry["probe"] = probe
+    entry["updated_at"] = datetime.now(timezone.utc).isoformat()
+    data["sources"][key] = entry
+    data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    return write_json(outputs_root / "run_index.json", data)
 
 
 def latest_inventory(outputs_root: Path = DEFAULT_OUTPUT_ROOT) -> Optional[Path]:
@@ -93,6 +128,8 @@ __all__ = [
     "read_json",
     "write_pointer",
     "load_pointer",
+    "load_run_index",
+    "update_run_index",
     "latest_inventory",
     "latest_probe",
     "load_table",

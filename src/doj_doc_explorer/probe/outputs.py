@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict
 
@@ -9,7 +9,7 @@ import pandas as pd
 
 from ..config import ProbeRunConfig, new_run_id
 from ..utils.git import current_git_commit
-from ..utils.io import ensure_dir, read_json, write_json, write_pointer
+from ..utils.io import ensure_dir, read_json, update_run_index, write_json, write_pointer
 
 PROBE_POINTER = "LATEST.json"
 
@@ -93,6 +93,20 @@ def _infer_inventory_label(inventory_path: Path) -> str | None:
     return None
 
 
+def _infer_source_root(inventory_path: Path) -> tuple[Path, str]:
+    run_log = read_json(inventory_path.with_name("run_log.json"))
+    root_value = run_log.get("root")
+    root_name = run_log.get("source_root_name")
+    if root_value:
+        source_root = Path(root_value)
+    else:
+        source_root = inventory_path
+    if not root_name:
+        summary = read_json(inventory_path.with_name("inventory_summary.json"))
+        root_name = summary.get("source_root_name") or source_root.name
+    return source_root, root_name
+
+
 def write_probe_outputs(
     pages_df: pd.DataFrame, docs_df: pd.DataFrame, config: ProbeRunConfig, meta: Dict
 ) -> Path:
@@ -114,7 +128,7 @@ def write_probe_outputs(
 
     run_log = {
         "probe_run_id": probe_run_id,
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "inventory_path": str(config.paths.inventory),
         "output_root": str(config.paths.outputs_root),
         "config": config.run_args,
@@ -130,6 +144,23 @@ def write_probe_outputs(
         "summary": str(Path("probes") / probe_run_id / "probe_summary.json"),
     }
     write_pointer(probe_root, PROBE_POINTER, pointer_payload)
+    source_root, source_root_name = _infer_source_root(config.paths.inventory)
+    inventory_run_log = read_json(config.paths.inventory.with_name("run_log.json"))
+    inventory_run_id = inventory_run_log.get("inventory_run_id") or config.paths.inventory.parent.name
+    update_run_index(
+        Path(config.paths.outputs_root),
+        source_root=source_root,
+        source_root_name=source_root_name,
+        probe={
+            "run_id": probe_run_id,
+            "run_dir": str(Path("probes") / probe_run_id),
+            "summary": str(Path("probes") / probe_run_id / "probe_summary.json"),
+            "run_log": str(Path("probes") / probe_run_id / "probe_run_log.json"),
+            "inventory": str(config.paths.inventory),
+            "inventory_run_id": inventory_run_id,
+            "timestamp": run_log["timestamp"],
+        },
+    )
 
     return run_dir
 
