@@ -38,11 +38,15 @@ This toolkit inventories DOJ document drops and runs light-touch probes to estim
 - **Large ZIP visibility**: the inventory now reads ZIP file listings without extracting them. Entries appear as `archive.zip::path/inside/file.pdf`, so you can see what is inside oversized archives without opening them manually.
 
 ## Probe workflow
-- Command: `python -m doj_doc_explorer.cli probe run --inventory <PATH|RUN_ID|LATEST> --out ./outputs [--text-threshold 25]`
+- Command: `python -m doj_doc_explorer.cli probe run --inventory <PATH|RUN_ID|LATEST> --out ./outputs [--text-threshold 25] [--doc-text-pct-text 0.50] [--doc-text-min-chars-per-page 200]`
 - Outputs (versioned): `outputs/probes/<run_id>/readiness_pages.parquet|csv`, `readiness_docs.parquet|csv`, `probe_summary.json`, `probe_run_log.json`, plus `outputs/probes/LATEST.json` pointing at the latest run and recording the inventory used.
 - **Matching probe run IDs**: probe run folders now start with the same **main folder name** captured from the inventory summary, then the run type and timestamp. This keeps inventory and probe outputs aligned for the same dataset.
 - Legacy compatibility: probes can still read a flat `outputs/inventory.csv` or a specific run folder.
 - ZIP-aware probing: when the inventory lists `archive.zip::path/inside/file.pdf`, the probe extracts **only the PDF entries** into `outputs/probe_extracts/` (or the configured output root) so they can be analyzed without unpacking the full ZIP.
+- **Text-based classification now uses two safeguards**:  
+  - **50% of pages must have extractable text**, **and**  
+  - the file must average at least **200 extractable characters per page**.  
+  This two-step rule prevents tiny corner labels on photo-heavy PDFs from being mistaken as real text. In plain terms, it helps reviewers avoid calling a mostly-image document “text-based” just because a small ID tag was detected.
 - **Redaction checks are paused**: the current probe run focuses on text readiness only. This avoids dependencies on PDF rendering and keeps the metrics limited to signals we can measure directly (text presence, document classification, and page counts).
 
 ## Streamlit QA dashboards

@@ -32,7 +32,18 @@ def build_parser() -> argparse.ArgumentParser:
     probe_run.add_argument("--inventory", default="LATEST", help="Inventory path or run id or LATEST")
     probe_run.add_argument("--out", default=str(DEFAULT_OUTPUT_ROOT), help="Outputs root")
     probe_run.add_argument("--text-threshold", type=int, default=25, help="Characters required to mark text")
-    probe_run.add_argument("--doc-text-pct-text", type=float, default=0.90, help="Pct of pages with text to call doc text-based")
+    probe_run.add_argument(
+        "--doc-text-pct-text",
+        type=float,
+        default=0.50,
+        help="Pct of pages with extractable text to call doc text-based",
+    )
+    probe_run.add_argument(
+        "--doc-text-min-chars-per-page",
+        type=int,
+        default=200,
+        help="Minimum average extractable characters per page to call doc text-based",
+    )
     probe_run.add_argument("--doc-text-pct-scanned", type=float, default=0.10, help="Pct of pages with text to call doc scanned")
     probe_run.add_argument("--max-pdfs", type=int, default=0, help="Limit number of PDFs (0 = all)")
     probe_run.add_argument("--max-pages", type=int, default=0, help="Limit pages per PDF (0 = all)")
@@ -95,6 +106,7 @@ def run_probe_cmd(args: argparse.Namespace) -> None:
         text_char_threshold=args.text_threshold,
         doc_text_pct_text=args.doc_text_pct_text,
         doc_text_pct_scanned=args.doc_text_pct_scanned,
+        doc_text_min_chars_per_page=args.doc_text_min_chars_per_page,
         max_pdfs=args.max_pdfs,
         max_pages=args.max_pages,
         skip_text_check=args.skip_text_check,
