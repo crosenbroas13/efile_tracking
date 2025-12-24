@@ -23,12 +23,19 @@ else:  # pragma: no cover - optional dependency guard
     PdfReader = None
 
 
-def run_text_scan(config: TextScanRunConfig) -> Tuple[pd.DataFrame, Dict[str, object]]:
+def run_text_scan(
+    config: TextScanRunConfig,
+    *,
+    probe_docs: pd.DataFrame | None = None,
+    probe_pages: pd.DataFrame | None = None,
+) -> Tuple[pd.DataFrame, Dict[str, object]]:
     if PdfReader is None:
         raise SystemExit("pypdf is not installed; install it to run text_scan.")
 
-    probe_docs = load_table(config.probe_run_dir / "readiness_docs")
-    probe_pages = load_table(config.probe_run_dir / "readiness_pages")
+    if probe_docs is None:
+        probe_docs = load_table(config.probe_run_dir / "readiness_docs")
+    if probe_pages is None:
+        probe_pages = load_table(config.probe_run_dir / "readiness_pages")
     if probe_docs.empty:
         raise SystemExit("Probe readiness_docs not found or empty; run probe first.")
 
@@ -142,8 +149,28 @@ def run_text_scan(config: TextScanRunConfig) -> Tuple[pd.DataFrame, Dict[str, ob
     return df, meta
 
 
-def run_text_scan_and_save(config: TextScanRunConfig) -> Path:
-    df, meta = run_text_scan(config)
+def run_text_scan_and_save(
+    config: TextScanRunConfig,
+    *,
+    probe_docs: pd.DataFrame | None = None,
+    probe_pages: pd.DataFrame | None = None,
+) -> Path:
+    df, meta = run_text_scan(config, probe_docs=probe_docs, probe_pages=probe_pages)
+    return _save_text_scan_run(df, config, meta)
+
+
+def run_text_scan_and_save_for_probe(
+    config: TextScanRunConfig,
+    *,
+    probe_docs: pd.DataFrame,
+    probe_pages: pd.DataFrame,
+) -> tuple[Path, pd.DataFrame, Dict[str, object]]:
+    df, meta = run_text_scan(config, probe_docs=probe_docs, probe_pages=probe_pages)
+    run_dir = _save_text_scan_run(df, config, meta)
+    return run_dir, df, meta
+
+
+def _save_text_scan_run(df: pd.DataFrame, config: TextScanRunConfig, meta: Dict[str, object]) -> Path:
     probe_run_id = config.probe_run_dir.name
     inventory_run_log = config.inventory_path.with_name("run_log.json")
     inventory_run_id = config.inventory_path.parent.name
@@ -185,4 +212,4 @@ def _write_meta(run_dir: Path, meta: Dict[str, object]) -> None:
     meta_path.write_text(json.dumps(payload, indent=2))
 
 
-__all__ = ["run_text_scan", "run_text_scan_and_save"]
+__all__ = ["run_text_scan", "run_text_scan_and_save", "run_text_scan_and_save_for_probe"]
