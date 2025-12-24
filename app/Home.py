@@ -14,9 +14,10 @@ st.caption("Landing page for inventory and probe review dashboards.")
 
 st.markdown(
     """
-    Use the navigation sidebar to open the **Inventory QA** or **Probe QA** pages.
+    Use the navigation sidebar to open the **Inventory QA**, **Probe QA**, or **Probe Run Comparison** pages.
     These views stay local to your machine and never upload document contents. They help
-    non-technical reviewers quickly spot health issues before deeper processing.
+    non-technical reviewers quickly spot health issues and understand changes between runs
+    before deeper processing.
     """
 )
 
