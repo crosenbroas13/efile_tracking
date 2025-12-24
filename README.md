@@ -48,7 +48,7 @@ This toolkit inventories DOJ document drops and runs light-touch probes to estim
 ## Streamlit QA dashboards
 - Multipage launcher: `streamlit run app/Home.py -- --out ./outputs`. Use `--server.headless true` if you are running on a remote machine and need a URL to connect from your browser.
 - Pages read stored artifacts only; they do not rerun inventories or probes. Point them at `./outputs` to pick up the latest versioned runs via `LATEST.json`.
-- What you see: the Home page lists available inventories and probe runs. The QA pages chart text readiness, **redaction-like ratios**, and basic file counts so stakeholders can understand what is ready for review without installing Python tools themselves. The Document Filter page adds a table-driven view for narrowing to long, low-text, or flagged files, and the Probe Run Comparison page highlights differences between two probe runs so teams can explain what changed over time.
+- What you see: the Home page lists available inventories and probe runs. The QA pages chart text readiness, **redaction-like ratios**, and basic file counts so stakeholders can understand what is ready for review without installing Python tools themselves. The Document Filter page adds a table-driven view for narrowing to long, low-text, or flagged files, and the Probe Run Comparison page highlights differences between two probe runs so teams can explain what changed over time. The Probe Document Viewer supports **relative path search** and a **Chrome-safe image preview** mode so reviewers can jump directly to a file even if embedded PDF previews are blocked.
 - Data handling: Streamlit reads only from your local `outputs/` folder and never uploads files. You can safely share screenshots or exported charts because the app avoids transmitting underlying documents.
 - Troubleshooting: if Streamlit cannot find data, rerun `python -m doj_doc_explorer.cli self-check` to create expected folders, then rerun an inventory or probe. The CLI will print the exact command needed to launch the dashboards with your chosen output path.
 
@@ -89,6 +89,7 @@ Use this checklist to understand what lives where. It is written in plain langua
   - `app/pages/02_Probe_QA.py`: Probe results viewer with charts and download buttons for the readiness metrics.
   - `app/pages/03_Probe_Run_Compare.py`: Side-by-side comparison page for two probe runs, highlighting shifts in totals and document-level readiness.
   - `app/pages/04_Document_Filter.py`: Filterable document table that merges probe outputs with inventory metadata so reviewers can quickly spot long, low-text, or unusual files without opening the PDFs.
+  - `app/pages/04_Probe_Document_Viewer.py`: Single-document preview page with relative path search and alternate image previews for PDF files.
 
 - **Core package (`src/` folder)**
   - `src/__init__.py`: Exposes the `InventoryRunner` and result dataclass for simple imports.
