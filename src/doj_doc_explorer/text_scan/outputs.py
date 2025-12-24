@@ -6,7 +6,7 @@ from typing import Dict
 
 import pandas as pd
 
-from ..config import new_run_id
+from ..utils.run_ids import new_run_id
 from ..utils.git import current_git_commit
 from ..utils.io import ensure_dir, read_json, write_json, write_pointer
 from .config import TextScanRunConfig
