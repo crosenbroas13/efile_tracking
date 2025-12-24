@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import csv
 import json
-import re
 from dataclasses import asdict
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -50,8 +49,7 @@ def write_inventory_run(
 ) -> Dict[str, Path]:
     inventory_root = ensure_dir(Path(config.out_dir) / "inventory")
     root_name = config.root.resolve().name
-    sanitized_root = _sanitize_root_name(root_name)
-    run_id = run_id or new_run_id("inventory", label=sanitized_root)
+    run_id = run_id or new_run_id("inventory", label=root_name)
     run_dir = inventory_root / run_id
     ensure_dir(run_dir)
 
@@ -103,11 +101,4 @@ def write_inventory_run(
         "run_dir": run_dir,
         "pointer": inventory_root / INVENTORY_POINTER,
     }
-
-
-def _sanitize_root_name(value: str) -> str:
-    sanitized = re.sub(r"[^A-Za-z0-9._-]+", "-", value).strip("-")
-    return sanitized or "root"
-
-
 __all__ = ["write_inventory_run", "write_inventory_csv"]

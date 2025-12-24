@@ -32,7 +32,7 @@ This toolkit inventories DOJ document drops and runs light-touch probes to estim
 ## Inventory workflow
 - Command: `python -m doj_doc_explorer.cli inventory run --root <DATA_ROOT> --out ./outputs [--hash sha256|md5|sha1|none] [--ignore ...] [--max-files N]`
 - Outputs (versioned): `outputs/inventory/<run_id>/inventory.csv`, `inventory_summary.json`, `run_log.json`, plus `outputs/inventory/LATEST.json` pointing at the newest run.
-- **Human-friendly run IDs**: the `<run_id>` now includes the **main folder name you scanned** (sanitized for safe filenames). This keeps the download-date folder visible in the output path so non-technical reviewers can tell which dataset an inventory belongs to at a glance.
+- **Human-friendly run IDs**: the `<run_id>` now starts with the **main folder name you scanned** (sanitized for safe filenames), then the run type and timestamp. This puts the dataset name first so non-technical reviewers can tell which inventory belongs to which drop at a glance.
 - Backward compatibility: a copy of `inventory.csv` and `inventory_summary.json` is still written to `outputs/` for older dashboards.
 - Deterministic IDs: `file_id` favors the SHA-256 file hash when requested; otherwise it uses the path/size/mtime triple.
 - **Large ZIP visibility**: the inventory now reads ZIP file listings without extracting them. Entries appear as `archive.zip::path/inside/file.pdf`, so you can see what is inside oversized archives without opening them manually.
@@ -40,6 +40,7 @@ This toolkit inventories DOJ document drops and runs light-touch probes to estim
 ## Probe workflow
 - Command: `python -m doj_doc_explorer.cli probe run --inventory <PATH|RUN_ID|LATEST> --out ./outputs [--dpi 72] [--text-threshold 25] [--mostly-black 0.90]`
 - Outputs (versioned): `outputs/probes/<run_id>/readiness_pages.parquet|csv`, `readiness_docs.parquet|csv`, `probe_summary.json`, `probe_run_log.json`, plus `outputs/probes/LATEST.json` pointing at the latest run and recording the inventory used.
+- **Matching probe run IDs**: probe run folders now start with the same **main folder name** captured from the inventory summary, then the run type and timestamp. This keeps inventory and probe outputs aligned for the same dataset.
 - Legacy compatibility: probes can still read a flat `outputs/inventory.csv` or a specific run folder.
 - ZIP-aware probing: when the inventory lists `archive.zip::path/inside/file.pdf`, the probe extracts **only the PDF entries** into `outputs/probe_extracts/` (or the configured output root) so they can be analyzed without unpacking the full ZIP.
 
