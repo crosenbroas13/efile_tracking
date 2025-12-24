@@ -49,6 +49,32 @@ This toolkit inventories DOJ document drops and runs light-touch probes to estim
   This two-step rule prevents tiny corner labels on photo-heavy PDFs from being mistaken as real text. In plain terms, it helps reviewers avoid calling a mostly-image document “text-based” just because a small ID tag was detected.
 - **Redaction checks are paused**: the current probe run focuses on text readiness only. This avoids dependencies on PDF rendering and keeps the metrics limited to signals we can measure directly (text presence, document classification, and page counts).
 
+## PDF type labeling (rerun-safe)
+Use this workflow when you need a human-reviewed PDF type label that stays valid even if you rerun inventory or probe jobs later.
+
+- **Authoritative key**: labels attach to the document’s **relative path (`rel_path`)**, not the derived `doc_id`. This means the label stays attached even if a run ID or hash changes on rerun.
+- **Where labels live**: labels are stored in `outputs/labels/pdf_type_labels.csv` and always include the normalized `rel_path`, a label (`TEXT_PDF`, `IMAGE_PDF`, `MIXED_PDF`), and timestamps.
+- **Orphan handling**: if a file disappears in a new inventory, the label is kept but marked as *orphaned* in memory. It will not be used for training or prediction until the file returns, so nothing is silently lost.
+- **Safety for reruns**: every labeling, training, and prediction run writes a reconciliation report to `outputs/labels/label_reconciliation_<timestamp>.json`, so non-technical reviewers can see how many labels still match the latest inventory.
+
+### CLI commands
+These commands are designed to show the **relative path** first so reviewers can confirm the correct file.
+
+```bash
+# Apply or overwrite a label by relative path.
+python -m doj_doc_explorer.cli pdf_type label \
+  --inventory LATEST \
+  --rel-path "case_folder/scan_001.pdf" \
+  --label TEXT_PDF \
+  --overwrite
+
+# Build a training CSV from labels that match the latest inventory.
+python -m doj_doc_explorer.cli pdf_type train --inventory LATEST
+
+# Create predictions for unlabeled PDFs using the latest probe run.
+python -m doj_doc_explorer.cli pdf_type predict --inventory LATEST --probe LATEST
+```
+
 ## Streamlit QA dashboards
 - Multipage launcher: `streamlit run app/Home.py -- --out ./outputs`. Use `--server.headless true` if you are running on a remote machine and need a URL to connect from your browser.
 - Pages read stored artifacts only; they do not rerun inventories or probes. Point them at `./outputs` to pick up the latest versioned runs via `LATEST.json`.
@@ -59,6 +85,7 @@ This toolkit inventories DOJ document drops and runs light-touch probes to estim
 ## Outputs and versioning
 - `outputs/inventory/`: versioned inventory runs plus `LATEST.json`.
 - `outputs/probes/`: versioned probe runs plus `LATEST.json` referencing the inventory path.
+- `outputs/labels/`: PDF type labels, reconciliation reports, training snapshots, and predictions.
 - `outputs/run_index.json`: a **centralized “latest run” index** keyed by the original dataset folder you scanned. Each entry records the most recent inventory **and** probe run for that dataset so repeated runs update one place without overwriting history.
 - `outputs/inventory.csv` and `outputs/inventory_summary.json` remain for older tooling; new code prefers versioned folders.
 
@@ -115,6 +142,8 @@ Use this checklist to understand what lives where. It is written in plain langua
   - `src/probe_outputs.py`: Saves probe outputs (CSV/Parquet plus summaries and logs) to versioned run folders.
   - `src/probe_io.py`: Loads probe runs from disk and lists available runs for dashboard use.
   - `src/probe_viz_helpers.py`: Small formatting and parsing helpers used by the Probe QA dashboard.
+  - `src/doj_doc_explorer/pdf_type/labels.py`: Rerun-safe PDF type labeling utilities (label storage, reconciliation, and rel_path normalization).
+  - `src/doj_doc_explorer/utils/paths.py`: Shared helper for normalizing relative paths so labels match inventories across reruns.
 
 - **Tests**
   - `tests/conftest.py`: Ensures the repository root is importable during testing.
