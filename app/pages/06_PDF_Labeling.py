@@ -202,6 +202,15 @@ def _merge_text_scan_signals(
     return merged.drop(columns=["rel_path_norm"])
 
 
+def _good_text_paths(text_scan_df: pd.DataFrame) -> set[str]:
+    if text_scan_df.empty or "rel_path" not in text_scan_df.columns:
+        return set()
+    if "text_quality_label" not in text_scan_df.columns:
+        return set()
+    good_paths = text_scan_df[text_scan_df["text_quality_label"] == "GOOD"]["rel_path"]
+    return set(good_paths.astype(str).map(normalize_rel_path))
+
+
 st.title("PDF Type Labeling")
 st.caption("Friendly workspace for applying human-reviewed labels and saving them to the master labels file.")
 
@@ -278,6 +287,7 @@ if docs_df.empty or "page_count" not in docs_df.columns:
 st.caption(f"Latest probe run used for page counts: {latest_probe['probe_run_id']}")
 
 text_scan_df, _text_scan_summary, _text_scan_run_log = cached_load_latest_text_scan(str(out_dir))
+good_text_paths = _good_text_paths(text_scan_df)
 
 labels_csv = labels_path(out_dir)
 labels_df = load_labels(labels_csv, inventory_df)
@@ -531,12 +541,21 @@ if submitted and candidate_paths:
         st.success("Label saved to the master file.")
 
 st.markdown("### 4) Review progress")
-st.caption("Use these counts to track how much of the inventory has been labeled.")
+st.caption(
+    "Use these counts to track how much of the non-verified inventory has been labeled. "
+    "Verified text (GOOD) PDFs are intentionally excluded."
+)
 
 match_result = match_labels_to_inventory(inventory_df, labels_df)
+matched_view = match_result.matched.copy()
+unmatched_view = match_result.unmatched_inventory.copy()
+if good_text_paths:
+    matched_view = matched_view[~matched_view["rel_path"].map(normalize_rel_path).isin(good_text_paths)]
+    unmatched_view = unmatched_view[~unmatched_view["rel_path"].map(normalize_rel_path).isin(good_text_paths)]
+
 metric_cols = st.columns(3)
-metric_cols[0].metric("Labeled PDFs", f"{len(match_result.matched):,}")
-metric_cols[1].metric("Unlabeled PDFs", f"{len(match_result.unmatched_inventory):,}")
+metric_cols[0].metric("Labeled PDFs", f"{len(matched_view):,}")
+metric_cols[1].metric("Unlabeled PDFs", f"{len(unmatched_view):,}")
 metric_cols[2].metric("Orphaned labels", f"{len(match_result.orphaned):,}")
 
 st.markdown("### 5) Download or inspect the master labels file")
@@ -555,7 +574,7 @@ st.code(str(labels_csv), language="text")
 
 tabs = st.tabs(["Unlabeled PDFs", "Current labels", "Orphaned labels"])
 with tabs[0]:
-    unlabeled = match_result.unmatched_inventory.copy()
+    unlabeled = unmatched_view.copy()
     if unlabeled.empty:
         st.info("All PDFs are labeled for this inventory.")
     else:
@@ -567,13 +586,13 @@ with tabs[0]:
         )
 
 with tabs[1]:
-    if match_result.matched.empty:
+    if matched_view.empty:
         st.info("No labels have been matched to this inventory yet.")
     else:
         st.dataframe(
-            match_result.matched[["rel_path", "label_norm", "labeled_at", "notes"]]
-            if "notes" in match_result.matched.columns
-            else match_result.matched[["rel_path", "label_norm", "labeled_at"]],
+            matched_view[["rel_path", "label_norm", "labeled_at", "notes"]]
+            if "notes" in matched_view.columns
+            else matched_view[["rel_path", "label_norm", "labeled_at"]],
             use_container_width=True,
         )
 

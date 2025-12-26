@@ -128,7 +128,7 @@ Use this workflow when you need a human-reviewed PDF type label that stays valid
 - **Short-document focus for training**: the labeling UI only lists PDFs with **five pages or fewer** (based on the latest probe run). This keeps the review queue fast and produces a **clean, consistent training set** for future ML models because every label is tied to a compact, easy-to-verify document.
 - **Chrome-safe previews**: reviewers see up to **five rendered page images** per PDF instead of an embedded browser PDF, which avoids Chrome iframe restrictions and keeps the review entirely local.
 - **Suspicious text-layer queue included**: PDFs with empty/low-quality text layers now appear here (with a one-click CSV download), so reviewers can immediately relabel them instead of switching to another page.
-- **Verified text excluded**: PDFs already confirmed as **GOOD** text quality are filtered out to keep reviewers focused on documents that still need a PDF type decision.
+- **Verified text excluded**: PDFs already confirmed as **GOOD** text quality are filtered out of the labeling list and progress tables to keep reviewers focused on documents that still need a PDF type decision.
 
 ### CLI commands
 These commands are designed to show the **relative path** first so reviewers can confirm the correct file.
