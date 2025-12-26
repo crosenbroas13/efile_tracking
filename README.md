@@ -104,9 +104,11 @@ python -m doj_doc_explorer.cli text_scan run --inventory LATEST --probe LATEST -
 ### Streamlit impact
 The **Text Based Documents** page now merges Text Scan signals so it can:
 - Confirm **verified text** PDFs (GOOD text quality),
-- Highlight **suspicious text layers** (EMPTY/LOW quality),
 - Provide a **content type breakdown** for text-ready documents,
-- Export a **labeling queue** for suspect text-based PDFs.
+- Keep the view focused on *already-usable* text for non-technical reviewers.
+
+The **PDF Labeling** page now includes the **suspicious text-layer queue** (EMPTY/LOW quality), so reviewers can
+download a labeling list and relabel those PDFs as **IMAGE_OF_TEXT_PDF** in the same workflow.
 
 ## PDF type labeling (rerun-safe)
 Use this workflow when you need a human-reviewed PDF type label that stays valid even if you rerun inventory or probe jobs later.
@@ -125,6 +127,8 @@ Use this workflow when you need a human-reviewed PDF type label that stays valid
 - **Built-in browsing helpers**: the labeling page now includes **search**, **folder-based browsing**, and **sort order** controls so reviewers can quickly locate the next PDF to label without scrolling through long lists.
 - **Short-document focus for training**: the labeling UI only lists PDFs with **five pages or fewer** (based on the latest probe run). This keeps the review queue fast and produces a **clean, consistent training set** for future ML models because every label is tied to a compact, easy-to-verify document.
 - **Chrome-safe previews**: reviewers see up to **five rendered page images** per PDF instead of an embedded browser PDF, which avoids Chrome iframe restrictions and keeps the review entirely local.
+- **Suspicious text-layer queue included**: PDFs with empty/low-quality text layers now appear here (with a one-click CSV download), so reviewers can immediately relabel them instead of switching to another page.
+- **Verified text excluded**: PDFs already confirmed as **GOOD** text quality are filtered out to keep reviewers focused on documents that still need a PDF type decision.
 
 ### CLI commands
 These commands are designed to show the **relative path** first so reviewers can confirm the correct file.

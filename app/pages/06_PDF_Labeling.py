@@ -36,6 +36,7 @@ from src.io_utils import (
 )
 from src.probe_readiness import stable_doc_id
 from src.probe_io import list_probe_runs, load_probe_run
+from src.text_scan_io import load_latest_text_scan
 
 st.set_page_config(page_title="PDF Labeling", layout="wide")
 
@@ -50,6 +51,11 @@ def cached_list_probe_runs(out_dir_str: str) -> list[Dict]:
 @st.cache_data(show_spinner=False)
 def cached_load_probe_run(out_dir_str: str, run_id: str):
     return load_probe_run(out_dir_str, run_id)
+
+
+@st.cache_data(show_spinner=False)
+def cached_load_latest_text_scan(out_dir_str: str):
+    return load_latest_text_scan(out_dir_str)
 
 
 def _compute_doc_id_from_row(row: pd.Series) -> str:
@@ -167,6 +173,35 @@ def _add_folder_columns(inventory_df: pd.DataFrame) -> pd.DataFrame:
     return inventory_df
 
 
+def _merge_text_scan_signals(
+    inventory_df: pd.DataFrame, text_scan_df: pd.DataFrame
+) -> pd.DataFrame:
+    inventory_df = inventory_df.copy()
+    if inventory_df.empty:
+        return inventory_df
+    inventory_df["rel_path_norm"] = inventory_df["rel_path"].astype(str).map(normalize_rel_path)
+    if text_scan_df.empty or "rel_path" not in text_scan_df.columns:
+        inventory_df["text_quality_label"] = ""
+        return inventory_df.drop(columns=["rel_path_norm"])
+
+    scan_df = text_scan_df.copy()
+    scan_df["rel_path_norm"] = scan_df["rel_path"].astype(str).map(normalize_rel_path)
+    scan_df = scan_df.drop_duplicates(subset=["rel_path_norm"])
+    merge_cols = [
+        "text_quality_label",
+        "text_quality_score",
+        "content_type_pred",
+        "content_type_confidence",
+        "avg_chars_per_text_page",
+        "alpha_ratio",
+        "gibberish_score",
+    ]
+    available_cols = [col for col in merge_cols if col in scan_df.columns]
+    merged = inventory_df.merge(scan_df[available_cols + ["rel_path_norm"]], on="rel_path_norm", how="left")
+    merged["text_quality_label"] = merged.get("text_quality_label", "").fillna("").astype(str)
+    return merged.drop(columns=["rel_path_norm"])
+
+
 st.title("PDF Type Labeling")
 st.caption("Friendly workspace for applying human-reviewed labels and saving them to the master labels file.")
 
@@ -195,6 +230,13 @@ st.markdown(
     **Why the list is short:** this labeling queue only shows PDFs that are **{MAX_LABEL_PAGES} pages or fewer**.
     Short documents are faster to review and make a clean starter dataset for future ML training, so each label
     you apply here can become a high-quality example in the training repository.
+    """
+)
+st.markdown(
+    """
+    **Important:** this page intentionally **excludes verified text PDFs (GOOD)** so reviewers focus on
+    documents that still need a PDF type decision. Verified text files stay on the **Text Based Documents**
+    page for quick review and content triage.
     """
 )
 
@@ -235,10 +277,61 @@ if docs_df.empty or "page_count" not in docs_df.columns:
     st.stop()
 st.caption(f"Latest probe run used for page counts: {latest_probe['probe_run_id']}")
 
+text_scan_df, _text_scan_summary, _text_scan_run_log = cached_load_latest_text_scan(str(out_dir))
+
 labels_csv = labels_path(out_dir)
 labels_df = load_labels(labels_csv, inventory_df)
 
-st.markdown("### 2) Apply a label")
+st.markdown("### 2) Suspicious text layer queue")
+st.caption(
+    "These PDFs look text-based but have empty or low-quality text layers. "
+    "They are strong candidates for relabeling as IMAGE_OF_TEXT_PDF."
+)
+
+if text_scan_df.empty:
+    st.info(
+        "No Text Scan data found yet. Run a probe (with Text Scan enabled) or run the text scan command "
+        "to populate suspicious text layer signals."
+    )
+else:
+    text_docs_df = docs_df.copy()
+    text_docs_df = text_docs_df[text_docs_df["classification"] == "Text-based"].copy()
+    text_docs_df["rel_path_norm"] = text_docs_df["rel_path"].astype(str).map(normalize_rel_path)
+    scan_view = text_scan_df.copy()
+    scan_view["rel_path_norm"] = scan_view["rel_path"].astype(str).map(normalize_rel_path)
+    scan_view = scan_view.drop_duplicates(subset=["rel_path_norm"])
+    if "text_quality_label" not in scan_view.columns:
+        st.info("Text Scan data is missing text-quality labels, so no suspicious queue can be shown yet.")
+    else:
+        suspicious_df = text_docs_df.merge(scan_view, on="rel_path_norm", how="left")
+        suspicious_df = suspicious_df[suspicious_df["text_quality_label"].isin(["EMPTY", "LOW"])].copy()
+        if suspicious_df.empty:
+            st.success("No suspicious text-layer PDFs found in the latest probe + text scan.")
+        else:
+            table_cols = [
+                "rel_path",
+                "avg_chars_per_text_page",
+                "alpha_ratio",
+                "gibberish_score",
+                "text_quality_label",
+            ]
+            suspicious_table = suspicious_df.reindex(columns=table_cols).copy()
+            suspicious_table = suspicious_table.sort_values("gibberish_score", ascending=False)
+            st.dataframe(suspicious_table, use_container_width=True)
+            csv_bytes = (
+                suspicious_df[["rel_path"]]
+                .assign(suggested_label="IMAGE_OF_TEXT_PDF")
+                .to_csv(index=False)
+                .encode("utf-8")
+            )
+            st.download_button(
+                "Download suspicious list (labeling queue)",
+                data=csv_bytes,
+                file_name="suspicious_text_layers.csv",
+                mime="text/csv",
+            )
+
+st.markdown("### 3) Apply a label")
 st.caption(
     "Pick a PDF, choose a label, and save it to the master file. Notes are optional but helpful. "
     f"This view only lists documents with {MAX_LABEL_PAGES} or fewer pages so each label can double as "
@@ -262,6 +355,8 @@ inventory_ui = inventory_ui[
     (inventory_ui["page_count"] > 0) & (inventory_ui["page_count"] <= MAX_LABEL_PAGES)
 ].copy()
 inventory_ui = _add_folder_columns(inventory_ui)
+inventory_ui = _merge_text_scan_signals(inventory_ui, text_scan_df)
+inventory_ui = inventory_ui[inventory_ui["text_quality_label"] != "GOOD"].copy()
 label_lookup = labels_df.set_index("rel_path")["label_norm"].to_dict() if not labels_df.empty else {}
 inventory_ui["current_label"] = inventory_ui["rel_path"].map(label_lookup).fillna("")
 inventory_ui["is_labeled"] = inventory_ui["current_label"].astype(str).str.strip() != ""
@@ -269,7 +364,8 @@ inventory_ui["is_labeled"] = inventory_ui["current_label"].astype(str).str.strip
 if inventory_ui.empty:
     st.warning(
         f"No PDFs under {MAX_LABEL_PAGES} pages were found in the latest probe run. "
-        "Run a probe on the inventory or adjust the inventory selection."
+        "Run a probe on the inventory or adjust the inventory selection. "
+        "Verified text PDFs (GOOD) are intentionally excluded from this queue."
     )
     st.stop()
 
@@ -434,7 +530,7 @@ if submitted and candidate_paths:
         )
         st.success("Label saved to the master file.")
 
-st.markdown("### 3) Review progress")
+st.markdown("### 4) Review progress")
 st.caption("Use these counts to track how much of the inventory has been labeled.")
 
 match_result = match_labels_to_inventory(inventory_df, labels_df)
@@ -443,7 +539,7 @@ metric_cols[0].metric("Labeled PDFs", f"{len(match_result.matched):,}")
 metric_cols[1].metric("Unlabeled PDFs", f"{len(match_result.unmatched_inventory):,}")
 metric_cols[2].metric("Orphaned labels", f"{len(match_result.orphaned):,}")
 
-st.markdown("### 4) Download or inspect the master labels file")
+st.markdown("### 5) Download or inspect the master labels file")
 st.caption(
     "This CSV is the source of truth for labels. Share it with your team or keep it for audits and model training."
 )

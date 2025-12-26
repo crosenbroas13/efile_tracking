@@ -210,9 +210,9 @@ def main() -> None:
     st.markdown(
         """
         **Why this matters:** text-based PDFs can be searched and summarized immediately, but some PDFs
-        contain *empty or junk* text layers that look “text-ready” when they are not. This page now combines
-        probe signals with a **Text Scan** quality check so non-technical reviewers can focus on **verified
-        text** and quickly queue suspicious files for relabeling.
+        contain *empty or junk* text layers that look “text-ready” when they are not. This page now focuses
+        exclusively on **verified text** (GOOD) documents. Suspicious text layers have moved to the
+        **PDF Labeling** page so reviewers can relabel them in the same workflow.
         """
     )
 
@@ -272,23 +272,19 @@ def main() -> None:
     text_docs_df = text_docs_df.sort_values("doc_label")
 
     verified_df = text_docs_df[text_docs_df["text_quality_label"] == "GOOD"].copy()
-    suspicious_df = text_docs_df[text_docs_df["text_quality_label"].isin(["EMPTY", "LOW"])].copy()
-    unscanned_df = text_docs_df[text_docs_df["text_quality_label"] == ""].copy()
-
     st.markdown("### Text scan overview")
-    metric_cols = st.columns(3)
+    metric_cols = st.columns(2)
     metric_cols[0].metric("Probe text-based docs", f"{len(text_docs_df):,}")
     metric_cols[1].metric("Verified text (GOOD)", f"{len(verified_df):,}")
-    metric_cols[2].metric("Suspicious text layers", f"{len(suspicious_df):,}")
 
     st.markdown("### Content type mix (verified text)")
     _bar_chart(verified_df)
 
     st.markdown(
         """
-        **How to use this page:** start with **Verified Text** to review documents that are truly text-ready.
-        Then move to **Suspicious Text Layer** to catch PDFs that *look* text-based but have empty or junk
-        text layers. Those files are strong candidates for relabeling as **IMAGE_OF_TEXT_PDF**.
+        **How to use this page:** review the **Verified Text** list to confirm documents that are truly
+        text-ready. For PDFs with suspicious or missing text layers, use the **PDF Labeling** page to
+        relabel them as **IMAGE_OF_TEXT_PDF** or other appropriate types.
         """
     )
 
@@ -299,12 +295,19 @@ def main() -> None:
         )
         st.stop()
 
-    tabs = st.tabs(["Verified Text (GOOD)", "Suspicious Text Layer (EMPTY/LOW)", "Unscanned / No Text Scan Yet"])
+    if verified_df.empty:
+        st.info(
+            "No verified text (GOOD) PDFs were found in the latest text scan. "
+            "Use the PDF Labeling page to triage suspicious or unscanned documents."
+        )
+        st.stop()
+
+    tabs = st.tabs(["Verified Text (GOOD)"])
     search_value = st.text_input("Search relative path", value="")
-    filtered_df = text_docs_df
+    filtered_df = verified_df
     if search_value:
-        mask = text_docs_df["rel_path"].str.contains(search_value, case=False, na=False)
-        filtered_df = text_docs_df.loc[mask]
+        mask = verified_df["rel_path"].str.contains(search_value, case=False, na=False)
+        filtered_df = verified_df.loc[mask]
         if filtered_df.empty:
             st.warning("No text-based documents matched that relative path search.")
             st.stop()
@@ -316,40 +319,12 @@ def main() -> None:
             use_container_width=True,
         )
 
-    with tabs[1]:
-        st.markdown("#### Suspicious text layer candidates")
-        if suspicious_df.empty:
-            st.info("No suspicious text-layer PDFs found in the latest probe + text scan.")
-        else:
-            suspicious_table = suspicious_df[
-                ["rel_path", "avg_chars_per_text_page", "alpha_ratio", "gibberish_score", "text_quality_label"]
-            ]
-            suspicious_table = _ensure_columns(
-                suspicious_table,
-                ["rel_path", "avg_chars_per_text_page", "alpha_ratio", "gibberish_score", "text_quality_label"],
-            ).sort_values("gibberish_score", ascending=False)
-            st.dataframe(suspicious_table, use_container_width=True)
-            csv_bytes = suspicious_df[["rel_path"]].assign(suggested_label="IMAGE_OF_TEXT_PDF").to_csv(index=False).encode("utf-8")
-            st.download_button(
-                "Download suspicious list (labeling queue)",
-                data=csv_bytes,
-                file_name="suspicious_text_layers.csv",
-                mime="text/csv",
-            )
-
-    with tabs[2]:
-        st.markdown("#### Text-based PDFs without text scan signals")
-        if unscanned_df.empty:
-            st.success("All text-based PDFs have text scan signals.")
-        else:
-            st.dataframe(_ensure_columns(unscanned_df, ["rel_path", "page_count"]), use_container_width=True)
-
     st.markdown("### Document preview")
     selected_label = st.selectbox(
         "Text-based document to preview",
         filtered_df["doc_label"].tolist(),
     )
-    selected_row = text_docs_df.loc[text_docs_df["doc_label"] == selected_label].iloc[0]
+    selected_row = verified_df.loc[verified_df["doc_label"] == selected_label].iloc[0]
 
     if isinstance(run_log, dict):
         output_root = run_log.get("output_root") or out_dir_text
