@@ -29,6 +29,28 @@ This toolkit inventories DOJ document drops and runs light-touch probes to estim
 - **PyCharm scripts**: open `scripts/run_inventory.py` or `scripts/run_probe.py`, edit the two constants at the top (data root/output or inventory/output), and click Run. They now call the same maintained CLI code path, so you can swap between editor-run scripts and terminal commands without worrying about drift.
 - **CLI**: stick to the commands above; change only the `--root` or `--inventory` values and the output folder if you want a different location. All entry points are backed by the single `doj_doc_explorer.cli` module to reduce duplicated logic.
 
+## DOJ disclosure downloader (networked)
+Use this script when you need to **mirror the official DOJ disclosure page** onto your local disk for later review.
+
+```bash
+python doj_disclosures_downloader.py
+```
+
+### What it does (plain language)
+- **Finds only the file links** inside the DOJ disclosure accordion and downloads those ZIP/PDF/MP4/WAV files.
+- **Keeps a local manifest** so it does *not* re-download unchanged files.
+- **Writes a rotating log** so non-technical reviewers can see what changed between runs.
+
+### Why this matters
+- **Predictable storage**: everything lands under `outputs/doj_disclosures/`, organized by the DOJ section heading so reviewers can browse by topic.
+- **Low risk of duplicates**: the manifest tracks `etag`, `last_modified`, and file size, reducing storage waste.
+- **Network awareness**: this is one of the few tools in the repo that **does** make external requests (to justice.gov), so run it only when you intend to pull fresh files.
+
+### Helpful options
+- `--dry-run`: list what would download without saving files.
+- `--watch 30`: recheck every 30 minutes until you stop it.
+- `--limit 5`: cap downloads per run for safe testing.
+
 ## Inventory workflow
 - Command: `python -m doj_doc_explorer.cli inventory run --root <DATA_ROOT> --out ./outputs [--hash sha256|md5|sha1|none] [--ignore ...] [--max-files N]`
 - Outputs (versioned): `outputs/inventory/<run_id>/inventory.csv`, `inventory_summary.json`, `run_log.json`, plus `outputs/inventory/LATEST.json` pointing at the newest run.
@@ -226,6 +248,7 @@ Use this checklist to understand what lives where. It is written in plain langua
 - **Helper scripts**
   - `scripts/run_inventory.py`: Simple entry point for IDE users; edit two constants to scan a folder and write inventory outputs.
   - `scripts/run_probe.py`: IDE-friendly probe launcher that locates the latest inventory (or a specific run ID) and saves readiness metrics.
+  - `doj_disclosures_downloader.py`: Networked downloader that mirrors the DOJ Epstein disclosure accordion into `outputs/doj_disclosures/` with a manifest to avoid re-downloading unchanged files.
 
 - **Streamlit dashboards**
   - `app/Home.py`: Landing page that introduces the dashboards and explains how to navigate them safely.
