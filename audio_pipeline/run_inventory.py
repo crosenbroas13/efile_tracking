@@ -64,13 +64,17 @@ def main() -> None:
     ensure_dir(args.output)
     index_path = args.output / "index.csv"
 
-    media_files = limit_files(discover_media_files(args.input), config.max_files)
+    extract_root = args.output / "zip_extracts"
+    media_files = limit_files(
+        discover_media_files(args.input, extract_root), config.max_files
+    )
     logger.info("Discovered %s media files", len(media_files))
 
     summary = {"processed": 0, "skipped": 0, "failed": 0}
 
-    for media_path in media_files:
-        output_dir = safe_output_dir(args.output, media_path)
+    for media in media_files:
+        media_path = media.media_path
+        output_dir = safe_output_dir(args.output, media.output_label)
         ensure_dir(output_dir)
         transcript_path = output_dir / "transcript.txt"
         segments_path = output_dir / "segments.json"
@@ -81,8 +85,8 @@ def main() -> None:
             append_index_row(
                 index_path,
                 {
-                    "file_path": str(media_path),
-                    "file_name": media_path.name,
+                    "file_path": media.display_path,
+                    "file_name": media.display_name,
                     "sha256": compute_sha256(media_path),
                     "duration_sec": probe_duration_seconds(media_path),
                     "language": None,
@@ -105,8 +109,8 @@ def main() -> None:
 
         warnings: List[str] = []
         row: Dict[str, Any] = {
-            "file_path": str(media_path),
-            "file_name": media_path.name,
+            "file_path": media.display_path,
+            "file_name": media.display_name,
             "sha256": compute_sha256(media_path),
             "duration_sec": probe_duration_seconds(media_path),
             "language": None,
@@ -151,7 +155,7 @@ def main() -> None:
 
             meta_payload = build_meta_payload(
                 {
-                    "file_path": str(media_path),
+                    "file_path": media.display_path,
                     "language": transcription.get("language"),
                     "model": transcription.get("model"),
                     "word_count": features["word_count"],
