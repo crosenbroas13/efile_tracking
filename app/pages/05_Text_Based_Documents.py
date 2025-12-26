@@ -188,14 +188,14 @@ def _bar_chart(df: pd.DataFrame) -> None:
         .value_counts()
         .reset_index()
     )
-    counts.columns = ["Content type", "Documents"]
+    counts.columns = ["Context type", "Documents"]
     fig = px.bar(
         counts,
-        x="Content type",
+        x="Context type",
         y="Documents",
         text="Documents",
-        title="Content type mix for verified text PDFs",
-        color="Content type",
+        title="Context type mix for verified text documents",
+        color="Context type",
     )
     fig.update_layout(margin=dict(l=10, r=10, t=40, b=10), showlegend=False)
     st.plotly_chart(fig, use_container_width=True)
@@ -204,15 +204,15 @@ def _bar_chart(df: pd.DataFrame) -> None:
 def main() -> None:
     st.title("Text Based Documents")
     st.caption(
-        "Review documents that are already 100% text-based. This view stays local and does not send files "
-        "anywhere, so you can safely share the screen with non-technical reviewers."
+        "Review documents that are already verified as GOOD text quality. This view stays local and does "
+        "not send files anywhere, so you can safely share the screen with non-technical reviewers."
     )
     st.markdown(
         """
         **Why this matters:** text-based PDFs can be searched and summarized immediately, but some PDFs
-        contain *empty or junk* text layers that look “text-ready” when they are not. This page now combines
-        probe signals with a **Text Scan** quality check so non-technical reviewers can focus on **verified
-        text** and quickly queue suspicious files for relabeling.
+        contain *empty or junk* text layers that look “text-ready” when they are not. This page now
+        **shows only verified GOOD text quality documents**, so reviewers see what is ready for immediate
+        search without wading through false positives.
         """
     )
 
@@ -240,116 +240,122 @@ def main() -> None:
     docs_df["rel_path_norm"] = docs_df["rel_path"].astype(str).map(_normalize_rel_path)
     text_scan_df, _text_scan_summary, _text_scan_run_log = cached_load_latest_text_scan(out_dir_text)
     if text_scan_df.empty:
-        st.warning("No text scan runs found yet. This page will show probe-only results.")
-    else:
-        text_scan_df = text_scan_df.copy()
-        text_scan_df["rel_path_norm"] = text_scan_df["rel_path"].astype(str).map(_normalize_rel_path)
-        merge_cols = [
-            "text_quality_label",
-            "text_quality_score",
-            "content_type_pred",
-            "content_type_confidence",
-            "total_words",
-            "alpha_ratio",
-            "gibberish_score",
-            "avg_chars_per_text_page",
-            "text_snippet",
-        ]
-        available_cols = [col for col in merge_cols if col in text_scan_df.columns and col not in docs_df.columns]
-        if available_cols:
-            docs_df = docs_df.merge(
-                text_scan_df[available_cols + ["rel_path_norm"]],
-                on="rel_path_norm",
-                how="left",
-            )
+        st.warning("No text scan runs found yet. Run a text scan to verify GOOD text quality.")
+        st.stop()
+
+    text_scan_df = text_scan_df.copy()
+    text_scan_df["rel_path_norm"] = text_scan_df["rel_path"].astype(str).map(_normalize_rel_path)
+    merge_cols = [
+        "text_quality_label",
+        "text_quality_score",
+        "content_type_pred",
+        "content_type_confidence",
+        "total_words",
+        "alpha_ratio",
+        "gibberish_score",
+        "avg_chars_per_text_page",
+        "text_snippet",
+    ]
+    available_cols = [col for col in merge_cols if col in text_scan_df.columns and col not in docs_df.columns]
+    if available_cols:
+        docs_df = docs_df.merge(
+            text_scan_df[available_cols + ["rel_path_norm"]],
+            on="rel_path_norm",
+            how="left",
+        )
 
     text_docs_df = docs_df[docs_df["classification"] == "Text-based"].copy()
-    if "text_quality_label" not in text_docs_df.columns:
-        text_docs_df["text_quality_label"] = ""
-    else:
-        text_docs_df["text_quality_label"] = text_docs_df["text_quality_label"].fillna("").astype(str)
+    text_docs_df["text_quality_label"] = text_docs_df.get("text_quality_label", "").fillna("").astype(str)
+    text_docs_df["text_quality_score"] = pd.to_numeric(
+        text_docs_df.get("text_quality_score"), errors="coerce"
+    ).fillna(0.0)
+    text_docs_df["page_count"] = pd.to_numeric(text_docs_df.get("page_count"), errors="coerce").fillna(0).astype(int)
     text_docs_df["doc_label"] = text_docs_df.apply(_build_doc_label, axis=1)
     text_docs_df = text_docs_df.sort_values("doc_label")
 
     verified_df = text_docs_df[text_docs_df["text_quality_label"] == "GOOD"].copy()
-    suspicious_df = text_docs_df[text_docs_df["text_quality_label"].isin(["EMPTY", "LOW"])].copy()
-    unscanned_df = text_docs_df[text_docs_df["text_quality_label"] == ""].copy()
+    total_docs = len(docs_df)
+    verified_pct = (len(verified_df) / total_docs * 100) if total_docs else 0.0
 
-    st.markdown("### Text scan overview")
+    st.markdown("### Verified text overview")
     metric_cols = st.columns(3)
-    metric_cols[0].metric("Probe text-based docs", f"{len(text_docs_df):,}")
-    metric_cols[1].metric("Verified text (GOOD)", f"{len(verified_df):,}")
-    metric_cols[2].metric("Suspicious text layers", f"{len(suspicious_df):,}")
-
-    st.markdown("### Content type mix (verified text)")
-    _bar_chart(verified_df)
-
-    st.markdown(
-        """
-        **How to use this page:** start with **Verified Text** to review documents that are truly text-ready.
-        Then move to **Suspicious Text Layer** to catch PDFs that *look* text-based but have empty or junk
-        text layers. Those files are strong candidates for relabeling as **IMAGE_OF_TEXT_PDF**.
-        """
+    metric_cols[0].metric("Verified text (GOOD)", f"{len(verified_df):,}")
+    metric_cols[1].metric("Total documents in inventory", f"{total_docs:,}")
+    metric_cols[2].metric("Share of inventory", f"{verified_pct:.1f}%")
+    st.caption(
+        f"Verified text documents represent **{verified_pct:.1f}%** of the current inventory, "
+        "so reviewers can size the immediate search-ready workload."
     )
 
-    if text_docs_df.empty:
+    st.markdown("### Context type mix (verified text)")
+    _bar_chart(verified_df)
+
+    if verified_df.empty:
         st.info(
-            "No documents in the latest probe run are text-based yet. "
-            "Run OCR or wait for more text-ready files, then refresh this page."
+            "No verified GOOD text documents were found. Run a text scan or improve text quality, then refresh."
         )
         st.stop()
 
-    tabs = st.tabs(["Verified Text (GOOD)", "Suspicious Text Layer (EMPTY/LOW)", "Unscanned / No Text Scan Yet"])
-    search_value = st.text_input("Search relative path", value="")
-    filtered_df = text_docs_df
-    if search_value:
-        mask = text_docs_df["rel_path"].str.contains(search_value, case=False, na=False)
-        filtered_df = text_docs_df.loc[mask]
-        if filtered_df.empty:
-            st.warning("No text-based documents matched that relative path search.")
-            st.stop()
+    st.markdown("### Filtered download (verified text only)")
+    filter_cols = st.columns(3)
+    content_types = sorted(verified_df["content_type_pred"].fillna("UNKNOWN").unique().tolist())
+    selected_types = filter_cols[0].multiselect(
+        "Content type",
+        options=content_types,
+        default=content_types,
+        help="Limit the export to specific content/context types.",
+    )
+    page_min, page_max = int(verified_df["page_count"].min()), int(verified_df["page_count"].max())
+    selected_page_range = filter_cols[1].slider(
+        "Page count range",
+        min_value=page_min,
+        max_value=max(page_max, page_min),
+        value=(page_min, max(page_max, page_min)),
+        help="Choose the page range for the table and download.",
+    )
+    score_min, score_max = float(verified_df["text_quality_score"].min()), float(verified_df["text_quality_score"].max())
+    selected_score_range = filter_cols[2].slider(
+        "Text quality score range",
+        min_value=float(f"{score_min:.2f}"),
+        max_value=float(f"{score_max:.2f}"),
+        value=(float(f"{score_min:.2f}"), float(f"{score_max:.2f}")),
+        help="Narrow to higher or lower text quality scores.",
+    )
 
-    with tabs[0]:
-        st.markdown("#### Verified text PDFs")
-        st.dataframe(
-            _ensure_columns(verified_df, ["rel_path", "page_count", "content_type_pred", "text_quality_score"]),
-            use_container_width=True,
-        )
+    filtered_df = verified_df.copy()
+    if selected_types:
+        filtered_df = filtered_df[filtered_df["content_type_pred"].fillna("UNKNOWN").isin(selected_types)]
+    filtered_df = filtered_df[
+        filtered_df["page_count"].between(selected_page_range[0], selected_page_range[1])
+        & filtered_df["text_quality_score"].between(selected_score_range[0], selected_score_range[1])
+    ]
+    if filtered_df.empty:
+        st.warning("No verified text documents match the selected filters.")
+        st.stop()
 
-    with tabs[1]:
-        st.markdown("#### Suspicious text layer candidates")
-        if suspicious_df.empty:
-            st.info("No suspicious text-layer PDFs found in the latest probe + text scan.")
-        else:
-            suspicious_table = suspicious_df[
-                ["rel_path", "avg_chars_per_text_page", "alpha_ratio", "gibberish_score", "text_quality_label"]
-            ]
-            suspicious_table = _ensure_columns(
-                suspicious_table,
-                ["rel_path", "avg_chars_per_text_page", "alpha_ratio", "gibberish_score", "text_quality_label"],
-            ).sort_values("gibberish_score", ascending=False)
-            st.dataframe(suspicious_table, use_container_width=True)
-            csv_bytes = suspicious_df[["rel_path"]].assign(suggested_label="IMAGE_OF_TEXT_PDF").to_csv(index=False).encode("utf-8")
-            st.download_button(
-                "Download suspicious list (labeling queue)",
-                data=csv_bytes,
-                file_name="suspicious_text_layers.csv",
-                mime="text/csv",
-            )
-
-    with tabs[2]:
-        st.markdown("#### Text-based PDFs without text scan signals")
-        if unscanned_df.empty:
-            st.success("All text-based PDFs have text scan signals.")
-        else:
-            st.dataframe(_ensure_columns(unscanned_df, ["rel_path", "page_count"]), use_container_width=True)
+    st.dataframe(
+        _ensure_columns(
+            filtered_df,
+            ["rel_path", "page_count", "content_type_pred", "text_quality_score", "text_quality_label"],
+        ),
+        use_container_width=True,
+    )
+    download_bytes = filtered_df[
+        ["rel_path", "page_count", "content_type_pred", "text_quality_score", "text_quality_label"]
+    ].to_csv(index=False).encode("utf-8")
+    st.download_button(
+        "Download filtered verified text table",
+        data=download_bytes,
+        file_name="verified_text_documents.csv",
+        mime="text/csv",
+    )
 
     st.markdown("### Document preview")
     selected_label = st.selectbox(
-        "Text-based document to preview",
+        "Verified text document to preview",
         filtered_df["doc_label"].tolist(),
     )
-    selected_row = text_docs_df.loc[text_docs_df["doc_label"] == selected_label].iloc[0]
+    selected_row = verified_df.loc[verified_df["doc_label"] == selected_label].iloc[0]
 
     if isinstance(run_log, dict):
         output_root = run_log.get("output_root") or out_dir_text
