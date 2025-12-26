@@ -346,15 +346,17 @@ def run_once(args: argparse.Namespace, logger: logging.Logger) -> None:
                     status = "skipped"
                     skipped += 1
 
+            safe_download_metadata = download_metadata or {}
+            safe_existing = existing or {}
             entries[link.url] = {
-                **(existing or {}),
+                **safe_existing,
                 "url": link.url,
                 "local_path": str(destination),
                 "last_seen_utc": datetime.now(timezone.utc).isoformat(),
-                "etag": download_metadata.get("etag") or metadata.get("etag"),
-                "last_modified": download_metadata.get("last_modified") or metadata.get("last_modified"),
-                "content_length": download_metadata.get("content_length") or metadata.get("content_length"),
-                "sha256": download_metadata.get("sha256") or existing.get("sha256"),
+                "etag": safe_download_metadata.get("etag") or metadata.get("etag"),
+                "last_modified": safe_download_metadata.get("last_modified") or metadata.get("last_modified"),
+                "content_length": safe_download_metadata.get("content_length") or metadata.get("content_length"),
+                "sha256": safe_download_metadata.get("sha256") or safe_existing.get("sha256"),
                 "status": status,
             }
         except Exception as exc:  # noqa: BLE001 - capture for logging

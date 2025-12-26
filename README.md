@@ -47,7 +47,7 @@ python doj_disclosures_downloader.py
 - **Network awareness**: this is one of the few tools in the repo that **does** make external requests (to justice.gov), so run it only when you intend to pull fresh files.
 
 ### Helpful options
-- `--dry-run`: list what would download without saving files.
+- `--dry-run`: list what would download without saving files. This still updates the manifest with link metadata, but it **does not calculate file checksums** because nothing is downloaded.
 - `--watch 30`: recheck every 30 minutes until you stop it.
 - `--limit 5`: cap downloads per run for safe testing.
 
