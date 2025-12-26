@@ -36,6 +36,7 @@ from src.io_utils import (
 )
 from src.probe_readiness import stable_doc_id
 from src.probe_io import list_probe_runs, load_probe_run
+from src.text_scan_io import load_latest_text_scan
 
 st.set_page_config(page_title="PDF Labeling", layout="wide")
 
@@ -50,6 +51,11 @@ def cached_list_probe_runs(out_dir_str: str) -> list[Dict]:
 @st.cache_data(show_spinner=False)
 def cached_load_probe_run(out_dir_str: str, run_id: str):
     return load_probe_run(out_dir_str, run_id)
+
+
+@st.cache_data(show_spinner=False)
+def cached_load_latest_text_scan(out_dir_str: str):
+    return load_latest_text_scan(out_dir_str)
 
 
 def _compute_doc_id_from_row(row: pd.Series) -> str:
@@ -179,6 +185,13 @@ st.markdown(
 )
 st.markdown(
     """
+    **Verified text is excluded here:** PDFs confirmed as **GOOD text quality** are handled on the
+    **Text Based Documents** page. This page focuses on files that still need review, including
+    PDFs with **EMPTY** or **LOW** text layers that may need relabeling or OCR.
+    """
+)
+st.markdown(
+    """
     **Label guide (plain language)**
     - **TEXT_PDF**: real, selectable text (born-digital PDFs).
     - **IMAGE_OF_TEXT_PDF**: looks like text but is actually scanned images.
@@ -235,6 +248,16 @@ if docs_df.empty or "page_count" not in docs_df.columns:
     st.stop()
 st.caption(f"Latest probe run used for page counts: {latest_probe['probe_run_id']}")
 
+text_scan_df, _text_scan_summary, _text_scan_run_log = cached_load_latest_text_scan(str(out_dir))
+text_scan_available = not text_scan_df.empty
+if text_scan_available:
+    st.caption("Latest text scan run detected. Verified GOOD text will be excluded from this queue.")
+else:
+    st.info(
+        "No text scan runs found yet. This page will show all PDFs under the page limit. "
+        "Run a text scan to automatically hide verified GOOD text documents."
+    )
+
 labels_csv = labels_path(out_dir)
 labels_df = load_labels(labels_csv, inventory_df)
 
@@ -242,7 +265,7 @@ st.markdown("### 2) Apply a label")
 st.caption(
     "Pick a PDF, choose a label, and save it to the master file. Notes are optional but helpful. "
     f"This view only lists documents with {MAX_LABEL_PAGES} or fewer pages so each label can double as "
-    "a compact ML training example."
+    "a compact ML training example. Verified GOOD text documents are excluded."
 )
 
 st.markdown(
@@ -257,19 +280,49 @@ st.markdown(
 )
 
 inventory_ui = _merge_page_counts(inventory_df, docs_df)
+if text_scan_available:
+    text_scan_df = text_scan_df.copy()
+    text_scan_df["rel_path"] = text_scan_df["rel_path"].astype(str).map(normalize_rel_path)
+    inventory_ui = inventory_ui.merge(
+        text_scan_df[["rel_path", "text_quality_label", "text_quality_score"]],
+        on="rel_path",
+        how="left",
+    )
+else:
+    inventory_ui["text_quality_label"] = ""
+    inventory_ui["text_quality_score"] = pd.NA
 inventory_ui["page_count"] = pd.to_numeric(inventory_ui["page_count"], errors="coerce").fillna(0)
+inventory_ui["text_quality_label"] = inventory_ui["text_quality_label"].fillna("").astype(str)
 inventory_ui = inventory_ui[
     (inventory_ui["page_count"] > 0) & (inventory_ui["page_count"] <= MAX_LABEL_PAGES)
 ].copy()
+inventory_ui = inventory_ui[inventory_ui["text_quality_label"] != "GOOD"].copy()
 inventory_ui = _add_folder_columns(inventory_ui)
 label_lookup = labels_df.set_index("rel_path")["label_norm"].to_dict() if not labels_df.empty else {}
 inventory_ui["current_label"] = inventory_ui["rel_path"].map(label_lookup).fillna("")
 inventory_ui["is_labeled"] = inventory_ui["current_label"].astype(str).str.strip() != ""
 
+st.markdown("### Suspicious text layers (EMPTY/LOW)")
+st.caption(
+    "These PDFs have a text layer that looks present but is rated **EMPTY** or **LOW** quality. "
+    "They are strong candidates for relabeling as scans or for OCR."
+)
+suspicious_df = inventory_ui[inventory_ui["text_quality_label"].isin(["EMPTY", "LOW"])].copy()
+metric_cols = st.columns(2)
+metric_cols[0].metric("Suspicious text PDFs", f"{len(suspicious_df):,}")
+metric_cols[1].metric("Total unlabeled queue (non-GOOD)", f"{len(inventory_ui):,}")
+if suspicious_df.empty:
+    st.info("No EMPTY or LOW text-quality PDFs were found in the current queue.")
+else:
+    st.dataframe(
+        suspicious_df[["rel_path", "page_count", "text_quality_label"]].sort_values("rel_path"),
+        use_container_width=True,
+    )
+
 if inventory_ui.empty:
     st.warning(
-        f"No PDFs under {MAX_LABEL_PAGES} pages were found in the latest probe run. "
-        "Run a probe on the inventory or adjust the inventory selection."
+        f"No PDFs under {MAX_LABEL_PAGES} pages remain after excluding verified GOOD text documents. "
+        "Run a new probe/text scan or adjust the inventory selection."
     )
     st.stop()
 
@@ -309,6 +362,13 @@ with filter_cols[2]:
 candidate_df = inventory_ui if show_labeled else inventory_ui[~inventory_ui["is_labeled"]].copy()
 if filter_text:
     candidate_df = candidate_df[candidate_df["rel_path"].str.contains(filter_text, case=False, na=False)]
+focus_suspicious = st.checkbox(
+    "Focus on suspicious text layers only (EMPTY/LOW)",
+    value=False,
+    help="Turn this on to triage the PDFs whose text layers look empty or low quality.",
+)
+if focus_suspicious:
+    candidate_df = candidate_df[candidate_df["text_quality_label"].isin(["EMPTY", "LOW"])]
 
 if browse_mode != "All folders":
     folder_column = "top_level_folder" if browse_mode == "Top-level folder" else "parent_folder"
