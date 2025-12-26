@@ -1,6 +1,6 @@
 # Local-Only Audio Inventory Pipeline
 
-This module provides a **local-only** audio transcription + optional speaker diarization pipeline designed for **unknown content discovery**. It scans a folder of audio/video files, produces structured artifacts per file, and writes a global `index.csv` so you can later organize or classify the files based on what they contain.
+This module provides a **local-only** audio transcription + optional speaker diarization pipeline designed for **unknown content discovery**. It scans a folder of audio/video files (including **audio inside ZIP archives**), produces structured artifacts per file, and writes a global `index.csv` so you can later organize or classify the files based on what they contain.
 
 ## Local-Only Principles
 - **No external API calls.** Everything runs locally on your machine.
@@ -66,6 +66,7 @@ output/<file_stem>/
   meta.json
   diarization.rttm   (optional)
 ```
+**ZIP entries:** when audio is found inside a ZIP, the pipeline extracts **only the audio files** into `output/zip_extracts/` and records the original location as `archive.zip::path/inside/file.ext` in `index.csv` and `meta.json`. This keeps the audit trail intact without unpacking the entire archive.
 
 ### `index.csv` (Global Inventory)
 The pipeline writes `output/index.csv` with one row per file:
@@ -105,4 +106,3 @@ python run_inventory.py --input ./samples --output ./outputs --config config.jso
 ## CPU Runtime Notes
 - **Base** or **small** models are recommended for CPU-only environments.
 - Larger models are slower and may require more memory.
-
