@@ -109,6 +109,7 @@ The **Text Based Documents** page now merges Text Scan signals so it can:
 - Highlight **suspicious text layers** (EMPTY/LOW quality),
 - Provide a **content type breakdown** for text-ready documents,
 - Export a **labeling queue** for suspect text-based PDFs.
+- **Search by keyword** across verified text documents, then open a **Chrome-safe preview** with highlighted matches and extracted text so non-technical reviewers can confirm where the term appears (requires PyMuPDF for highlighted page images).
 
 ## PDF type labeling (rerun-safe)
 Use this workflow when you need a human-reviewed PDF type label that stays valid even if you rerun inventory or probe jobs later.
