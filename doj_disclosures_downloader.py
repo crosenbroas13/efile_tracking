@@ -24,6 +24,7 @@ import json
 import logging
 import re
 import time
+import zipfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
@@ -33,6 +34,7 @@ from urllib.parse import unquote, urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
+from pypdf import PdfReader
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
@@ -238,6 +240,58 @@ def download_file(
     }
 
 
+def count_pdf_pages(handle) -> int:
+    reader = PdfReader(handle)
+    return len(reader.pages)
+
+
+def get_page_count_metadata(path: Path, logger: logging.Logger) -> dict:
+    ext = path.suffix.lower()
+    if ext == ".pdf":
+        try:
+            with path.open("rb") as handle:
+                return {"page_count": count_pdf_pages(handle)}
+        except Exception as exc:  # noqa: BLE001 - log and continue
+            logger.warning("Unable to read PDF page count for %s: %s", path, exc)
+            return {}
+
+    if ext == ".zip":
+        try:
+            pdf_pages: dict[str, int] = {}
+            with zipfile.ZipFile(path) as archive:
+                for name in archive.namelist():
+                    if not name.lower().endswith(".pdf"):
+                        continue
+                    with archive.open(name) as handle:
+                        pdf_pages[name] = count_pdf_pages(handle)
+            if not pdf_pages:
+                return {}
+            return {
+                "embedded_pdf_pages": {
+                    "pdf_count": len(pdf_pages),
+                    "total_pages": sum(pdf_pages.values()),
+                    "per_pdf": pdf_pages,
+                }
+            }
+        except Exception as exc:  # noqa: BLE001 - log and continue
+            logger.warning("Unable to read PDF page counts inside %s: %s", path, exc)
+            return {}
+
+    return {}
+
+
+def has_page_count_changed(existing: dict | None, current: dict) -> bool:
+    if not existing or not current:
+        return False
+    if "page_count" in current and "page_count" in existing:
+        return current["page_count"] != existing["page_count"]
+    if "embedded_pdf_pages" in current and "embedded_pdf_pages" in existing:
+        existing_pages = existing["embedded_pdf_pages"]
+        current_pages = current["embedded_pdf_pages"]
+        return current_pages.get("per_pdf") != existing_pages.get("per_pdf")
+    return False
+
+
 def filter_download_links(links: Iterable[DownloadLink]) -> list[DownloadLink]:
     filtered: list[DownloadLink] = []
     seen = set()
@@ -285,6 +339,7 @@ def run_once(args: argparse.Namespace, logger: logging.Logger) -> None:
     downloaded = 0
     skipped = 0
     failures = 0
+    page_count_changes = 0
 
     for link in download_links:
         if args.limit and attempted >= args.limit:
@@ -294,22 +349,43 @@ def run_once(args: argparse.Namespace, logger: logging.Logger) -> None:
         destination = build_local_path(output_dir, link)
         existing = entries.get(link.url)
         attempted += 1
+        page_count_metadata: dict = {}
+        page_count_changed = False
 
         try:
             response, metadata = head_or_get_metadata(session, link.url, existing)
             if response is not None and response.status_code == 304:
+                if args.verify_page_count and destination.exists():
+                    page_count_metadata = get_page_count_metadata(destination, logger)
+                    page_count_changed = has_page_count_changed(existing, page_count_metadata)
+                    if page_count_changed:
+                        page_count_changes += 1
+                        logger.warning(
+                            "Page count changed for %s (local file differs from manifest).",
+                            link.url,
+                        )
                 skipped += 1
                 entries[link.url] = {
                     **(existing or {}),
                     "url": link.url,
                     "local_path": str(destination),
                     "last_seen_utc": datetime.now(timezone.utc).isoformat(),
-                    "status": "skipped",
+                    **page_count_metadata,
+                    "status": "page-count-changed" if page_count_changed else "skipped",
                 }
                 logger.info("Unchanged (304): %s", link.url)
                 continue
 
             if should_skip_download(metadata, existing):
+                if args.verify_page_count and destination.exists():
+                    page_count_metadata = get_page_count_metadata(destination, logger)
+                    page_count_changed = has_page_count_changed(existing, page_count_metadata)
+                    if page_count_changed:
+                        page_count_changes += 1
+                        logger.warning(
+                            "Page count changed for %s (local file differs from manifest).",
+                            link.url,
+                        )
                 skipped += 1
                 entries[link.url] = {
                     **(existing or {}),
@@ -319,7 +395,8 @@ def run_once(args: argparse.Namespace, logger: logging.Logger) -> None:
                     "etag": metadata.get("etag") or existing.get("etag"),
                     "last_modified": metadata.get("last_modified") or existing.get("last_modified"),
                     "content_length": metadata.get("content_length") or existing.get("content_length"),
-                    "status": "skipped",
+                    **page_count_metadata,
+                    "status": "page-count-changed" if page_count_changed else "skipped",
                 }
                 logger.info("Unchanged: %s", link.url)
                 continue
@@ -338,6 +415,7 @@ def run_once(args: argparse.Namespace, logger: logging.Logger) -> None:
                 downloaded += 1
                 status = "downloaded"
                 logger.info("Downloaded %s -> %s", link.url, destination)
+                page_count_metadata = get_page_count_metadata(destination, logger)
                 time.sleep(DOWNLOAD_DELAY_SECONDS)
             else:
                 if args.dry_run:
@@ -357,6 +435,7 @@ def run_once(args: argparse.Namespace, logger: logging.Logger) -> None:
                 "last_modified": safe_download_metadata.get("last_modified") or metadata.get("last_modified"),
                 "content_length": safe_download_metadata.get("content_length") or metadata.get("content_length"),
                 "sha256": safe_download_metadata.get("sha256") or safe_existing.get("sha256"),
+                **page_count_metadata,
                 "status": status,
             }
         except Exception as exc:  # noqa: BLE001 - capture for logging
@@ -378,6 +457,7 @@ def run_once(args: argparse.Namespace, logger: logging.Logger) -> None:
         f"  Downloads attempted: {attempted}\n"
         f"  Files downloaded: {downloaded}\n"
         f"  Skipped (unchanged): {skipped}\n"
+        f"  Page count changes detected: {page_count_changes}\n"
         f"  Failures: {failures}"
     )
     logger.info(summary)
@@ -410,6 +490,14 @@ def parse_args() -> argparse.Namespace:
         "--limit",
         type=int,
         help="Maximum number of downloads to attempt per run.",
+    )
+    parser.add_argument(
+        "--verify-page-count",
+        action="store_true",
+        help=(
+            "Verify PDF page counts for existing downloads (including PDFs inside ZIPs) "
+            "and flag entries when counts differ from the manifest."
+        ),
     )
     return parser.parse_args()
 
