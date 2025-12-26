@@ -2,7 +2,9 @@ import base64
 import hashlib
 import importlib
 import importlib.util
+import re
 import sys
+from html import escape
 from pathlib import Path, PurePosixPath
 from typing import Dict, List, Optional, Tuple
 
@@ -178,6 +180,138 @@ def _ensure_columns(df: pd.DataFrame, columns: List[str]) -> pd.DataFrame:
     return df[columns]
 
 
+@st.cache_data(show_spinner=False)
+def cached_search_keyword(
+    path_str: str,
+    mtime: float,
+    keyword: str,
+    case_sensitive: bool,
+    max_pages: int,
+) -> Tuple[List[Dict[str, object]], Optional[str]]:
+    if not keyword:
+        return [], None
+
+    fitz = load_fitz_optional()
+    pages: List[Dict[str, object]] = []
+    if fitz:
+        flags = 0
+        if not case_sensitive and hasattr(fitz, "TEXT_IGNORECASE"):
+            flags |= fitz.TEXT_IGNORECASE
+        if hasattr(fitz, "TEXT_DEHYPHENATE"):
+            flags |= fitz.TEXT_DEHYPHENATE
+        try:
+            doc = fitz.open(path_str)
+        except Exception as exc:
+            return [], f"Could not read PDF: {exc}"
+        try:
+            for page_index in range(doc.page_count):
+                if max_pages > 0 and page_index >= max_pages:
+                    break
+                page = doc.load_page(page_index)
+                text = page.get_text("text") or ""
+                flags_for_regex = 0 if case_sensitive else re.IGNORECASE
+                match_count = len(re.findall(re.escape(keyword), text, flags=flags_for_regex))
+                if match_count:
+                    pages.append(
+                        {
+                            "page_number": page_index + 1,
+                            "match_count": match_count,
+                            "text": text,
+                        }
+                    )
+        finally:
+            doc.close()
+        return pages, None
+
+    if not importlib.util.find_spec("pypdf"):
+        return [], "Install PyMuPDF (fitz) or pypdf to enable keyword search."
+
+    PdfReader = importlib.import_module("pypdf").PdfReader
+    try:
+        reader = PdfReader(path_str)
+    except Exception as exc:
+        return [], f"Could not read PDF: {exc}"
+
+    flags_for_regex = 0 if case_sensitive else re.IGNORECASE
+    for page_index, page in enumerate(reader.pages):
+        if max_pages > 0 and page_index >= max_pages:
+            break
+        try:
+            text = page.extract_text() or ""
+        except Exception:
+            text = ""
+        match_count = len(re.findall(re.escape(keyword), text, flags=flags_for_regex))
+        if match_count:
+            pages.append(
+                {
+                    "page_number": page_index + 1,
+                    "match_count": match_count,
+                    "text": text,
+                }
+            )
+
+    return pages, None
+
+
+def _highlight_keyword_text(text: str, keyword: str, case_sensitive: bool) -> str:
+    if not text:
+        return ""
+    safe_text = escape(text)
+    safe_keyword = escape(keyword)
+    flags = 0 if case_sensitive else re.IGNORECASE
+    pattern = re.compile(re.escape(safe_keyword), flags=flags)
+    return pattern.sub(lambda match: f"<mark>{match.group(0)}</mark>", safe_text)
+
+
+def _render_keyword_highlights(
+    path: Path,
+    keyword: str,
+    case_sensitive: bool,
+    max_pages: int,
+    max_pages_with_hits: int,
+) -> None:
+    fitz = load_fitz_optional()
+    if not fitz:
+        st.warning("Install PyMuPDF (fitz) to render highlighted pages for keyword matches.")
+        return
+
+    flags = 0
+    if not case_sensitive and hasattr(fitz, "TEXT_IGNORECASE"):
+        flags |= fitz.TEXT_IGNORECASE
+    if hasattr(fitz, "TEXT_DEHYPHENATE"):
+        flags |= fitz.TEXT_DEHYPHENATE
+
+    try:
+        doc = fitz.open(path)
+    except Exception as exc:
+        st.warning(f"Could not read PDF for highlights: {exc}")
+        return
+
+    try:
+        pages_shown = 0
+        for page_index in range(doc.page_count):
+            if max_pages > 0 and page_index >= max_pages:
+                break
+            page = doc.load_page(page_index)
+            rects = page.search_for(keyword, flags=flags)
+            if not rects:
+                continue
+            for rect in rects:
+                page.add_highlight_annot(rect)
+            pix = page.get_pixmap()
+            st.image(
+                pix.tobytes("png"),
+                caption=f"Page {page_index + 1} ({len(rects)} matches)",
+            )
+            pages_shown += 1
+            if max_pages_with_hits and pages_shown >= max_pages_with_hits:
+                break
+        if pages_shown == 0:
+            st.info("No highlighted pages were found for this keyword.")
+    finally:
+        doc.close()
+
+
 def _bar_chart(df: pd.DataFrame) -> None:
     if df.empty or "content_type_pred" not in df.columns:
         st.info("No content type predictions available yet.")
@@ -350,6 +484,137 @@ def main() -> None:
         mime="text/csv",
     )
 
+    if isinstance(run_log, dict):
+        output_root = run_log.get("output_root") or out_dir_text
+    else:
+        output_root = out_dir_text
+
+    st.markdown("### Keyword search (verified text only)")
+    st.caption(
+        "Search across the filtered, verified text documents. Matches list the documents that contain "
+        "your keyword so reviewers can click through, see a Chrome-safe preview, and confirm highlights "
+        "directly in the text."
+    )
+    keyword_cols = st.columns([2, 1, 1])
+    keyword = keyword_cols[0].text_input("Keyword", value="")
+    keyword_case_sensitive = keyword_cols[1].checkbox("Case sensitive", value=False)
+    keyword_max_pages = keyword_cols[2].number_input(
+        "Max pages to scan (0 = all)",
+        min_value=0,
+        max_value=500,
+        value=50,
+        step=1,
+        help="Limit the scan for very large PDFs to keep the search responsive.",
+    )
+
+    keyword_results: List[Dict[str, object]] = []
+    missing_docs: List[str] = []
+    if keyword:
+        with st.spinner("Searching documents for keyword matches..."):
+            for _, row in filtered_df.iterrows():
+                abs_path = str(row.get("abs_path") or "")
+                pdf_path = _resolve_pdf_path(abs_path, output_root)
+                if not pdf_path or not pdf_path.exists():
+                    missing_docs.append(str(row.get("rel_path") or "Unknown path"))
+                    continue
+                pages, error = cached_search_keyword(
+                    str(pdf_path),
+                    pdf_path.stat().st_mtime,
+                    keyword,
+                    keyword_case_sensitive,
+                    int(keyword_max_pages),
+                )
+                if error:
+                    st.warning(error)
+                    break
+                if pages:
+                    keyword_results.append(
+                        {
+                            "rel_path": row.get("rel_path") or "",
+                            "doc_label": row.get("doc_label") or row.get("rel_path") or "",
+                            "page_count": int(row.get("page_count") or 0),
+                            "abs_path": abs_path,
+                            "match_pages": pages,
+                            "match_count": sum(page["match_count"] for page in pages),
+                        }
+                    )
+
+    if keyword and missing_docs:
+        st.caption(
+            "Some files were skipped because they could not be found on disk: "
+            + ", ".join(missing_docs[:5])
+            + ("..." if len(missing_docs) > 5 else "")
+        )
+
+    if keyword:
+        if not keyword_results:
+            st.info("No keyword matches were found in the current filtered list.")
+        else:
+            results_df = pd.DataFrame(
+                [
+                    {
+                        "rel_path": result["rel_path"],
+                        "page_count": result["page_count"],
+                        "matches": result["match_count"],
+                        "pages_with_matches": ", ".join(
+                            str(page["page_number"]) for page in result["match_pages"]
+                        ),
+                    }
+                    for result in keyword_results
+                ]
+            )
+            st.dataframe(results_df, use_container_width=True)
+
+            selected_keyword_doc = st.selectbox(
+                "Keyword match to preview",
+                [result["doc_label"] for result in keyword_results],
+            )
+            selected_keyword = next(
+                result for result in keyword_results if result["doc_label"] == selected_keyword_doc
+            )
+            selected_keyword_path = _resolve_pdf_path(selected_keyword["abs_path"], output_root)
+
+            st.markdown("#### Keyword preview (Chrome-safe)")
+            preview_limit_cols = st.columns(2)
+            highlight_page_limit = preview_limit_cols[0].number_input(
+                "Max highlighted pages to render",
+                min_value=1,
+                max_value=25,
+                value=5,
+                step=1,
+                help="Only pages with matches are rendered.",
+            )
+            extracted_page_limit = preview_limit_cols[1].number_input(
+                "Max matched pages to show text for",
+                min_value=1,
+                max_value=50,
+                value=min(10, len(selected_keyword["match_pages"])),
+                step=1,
+            )
+
+            if selected_keyword_path and selected_keyword_path.exists():
+                _render_keyword_highlights(
+                    selected_keyword_path,
+                    keyword,
+                    keyword_case_sensitive,
+                    int(keyword_max_pages),
+                    int(highlight_page_limit),
+                )
+                st.markdown("#### Extracted text with highlights")
+                st.caption(
+                    "Highlighted text is extracted locally and shown only for pages that contain matches."
+                )
+                for page in selected_keyword["match_pages"][: int(extracted_page_limit)]:
+                    st.markdown(f"**Page {page['page_number']}**")
+                    highlighted = _highlight_keyword_text(
+                        str(page.get("text") or ""),
+                        keyword,
+                        keyword_case_sensitive,
+                    )
+                    st.markdown(f"<div>{highlighted}</div>", unsafe_allow_html=True)
+            else:
+                st.warning("The selected document could not be found on disk for preview.")
+
     st.markdown("### Document preview")
     selected_label = st.selectbox(
         "Verified text document to preview",
@@ -357,10 +622,6 @@ def main() -> None:
     )
     selected_row = verified_df.loc[verified_df["doc_label"] == selected_label].iloc[0]
 
-    if isinstance(run_log, dict):
-        output_root = run_log.get("output_root") or out_dir_text
-    else:
-        output_root = out_dir_text
     abs_path = str(selected_row.get("abs_path") or "")
     pdf_path = _resolve_pdf_path(abs_path, output_root)
 
