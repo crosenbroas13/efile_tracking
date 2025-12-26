@@ -45,11 +45,13 @@ python doj_disclosures_downloader.py
 - **Predictable storage**: everything lands under `outputs/doj_disclosures/`, organized by the DOJ section heading so reviewers can browse by topic.
 - **Low risk of duplicates**: the manifest tracks `etag`, `last_modified`, and file size, reducing storage waste.
 - **Network awareness**: this is one of the few tools in the repo that **does** make external requests (to justice.gov), so run it only when you intend to pull fresh files.
+- **Page-count integrity (optional)**: the `--verify-page-count` flag lets non-technical reviewers spot documents whose **page totals changed** locally (including PDFs stored inside ZIPs), which can indicate a file was replaced or modified after download.
 
 ### Helpful options
 - `--dry-run`: list what would download without saving files. This still updates the manifest with link metadata, but it **does not calculate file checksums** because nothing is downloaded.
 - `--watch 30`: recheck every 30 minutes until you stop it.
 - `--limit 5`: cap downloads per run for safe testing.
+- `--verify-page-count`: re-check page counts for local PDFs (including PDFs inside ZIPs) and flag any entries whose page totals changed since the last run.
 
 ## Inventory workflow
 - Command: `python -m doj_doc_explorer.cli inventory run --root <DATA_ROOT> --out ./outputs [--hash sha256|md5|sha1|none] [--ignore ...] [--max-files N]`
