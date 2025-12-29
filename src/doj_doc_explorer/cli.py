@@ -705,7 +705,7 @@ def run_pdf_type_migrate_cmd(args: argparse.Namespace) -> None:
 
 def run_qa_open(args: argparse.Namespace) -> None:
     out_dir = Path(args.out)
-    cmd = f"streamlit run app/Home.py -- --out {out_dir}"
+    cmd = f"streamlit run analysis/streamlit/Home.py -- --out {out_dir}"
     print("Launch QA UI with:")
     print(cmd)
 

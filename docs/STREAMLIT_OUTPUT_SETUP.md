@@ -13,13 +13,13 @@ Set `DOJ_OUTPUT_DIR` to the folder that contains your `inventory/`, `probes/`, a
 ### macOS / Linux (Terminal)
 ```bash
 export DOJ_OUTPUT_DIR="/full/path/to/outputs"
-streamlit run app/Home.py
+streamlit run analysis/streamlit/Home.py
 ```
 
 ### Windows (PowerShell)
 ```powershell
 $env:DOJ_OUTPUT_DIR = "C:\full\path\to\outputs"
-streamlit run app/Home.py
+streamlit run analysis/streamlit/Home.py
 ```
 
 > **Tip:** Add the export line to your shell profile (like `~/.zshrc` or `~/.bashrc`) if you want it to persist between sessions.
@@ -28,7 +28,7 @@ streamlit run app/Home.py
 If you prefer not to use environment variables, you can pass the folder once when you start Streamlit:
 
 ```bash
-streamlit run app/Home.py -- --out /full/path/to/outputs
+streamlit run analysis/streamlit/Home.py -- --out /full/path/to/outputs
 ```
 
 This `--out` value is picked up by all pages on launch, so the default is already filled in.

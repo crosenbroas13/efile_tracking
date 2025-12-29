@@ -2,16 +2,16 @@
 
 Usage examples:
   # Run once with defaults.
-  python doj_disclosures_downloader.py
+  python pipelines/base/doj_disclosures_downloader.py
 
   # Dry run (no downloads), show planned actions.
-  python doj_disclosures_downloader.py --dry-run
+  python pipelines/base/doj_disclosures_downloader.py --dry-run
 
   # Watch mode: recheck every 30 minutes.
-  python doj_disclosures_downloader.py --watch 30
+  python pipelines/base/doj_disclosures_downloader.py --watch 30
 
   # Limit downloads to 5 files per run (useful for testing).
-  python doj_disclosures_downloader.py --limit 5
+  python pipelines/base/doj_disclosures_downloader.py --limit 5
 
 This script targets the DOJ Epstein disclosures page and downloads any new or
 updated files from the disclosure accordion section.
