@@ -8,9 +8,9 @@ from pathlib import Path
 from typing import Dict, Optional
 
 # Allow running via "streamlit run" without requiring an editable install.
-APP_ROOT = Path(__file__).resolve().parent.parent
-if str(APP_ROOT) not in sys.path:
-    sys.path.insert(0, str(APP_ROOT))
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 import pandas as pd
 import plotly.express as px
@@ -19,14 +19,13 @@ from fpdf import FPDF
 
 from src.io_utils import (
     format_run_label,
-    get_default_out_dir,
     list_inventory_candidates,
     load_inventory_df,
     load_run_log,
-    normalize_out_dir,
     pick_default_inventory,
 )
 from src.qa_metrics import IssueConfig, compute_executive_summary, counts_by_extension_and_mime, detect_potential_issues
+from src.streamlit_config import get_output_dir
 
 st.set_page_config(page_title="QA File Import", layout="wide")
 
@@ -144,19 +143,21 @@ def main() -> None:
         st.info("More pages can be added here as the toolkit grows.")
         return
 
-    default_out = get_default_out_dir()
     st.markdown("#### Choose an inventory to review")
     st.caption(
-        "Pick an output folder to auto-discover inventories. If you prefer, you can then upload an inventory.csv directly "
-        "from your computer. Controls here replace the former sidebar so everything stays in one view."
+        "Your output folder is set on the Configuration page. You can still upload an inventory.csv directly "
+        "from your computer if you need to review a different file. Controls here replace the former sidebar so "
+        "everything stays in one view."
     )
 
     selector = st.container()
     with selector:
         input_cols = st.columns([2, 2, 1])
         with input_cols[0]:
-            out_dir_text = st.text_input("Output folder", value=str(default_out))
-            out_dir = normalize_out_dir(out_dir_text)
+            out_dir = get_output_dir()
+            st.caption("Output folder (from Configuration page)")
+            st.code(str(out_dir), language="text")
+            st.page_link("pages/00_Configuration.py", label="Update output folder", icon="🧭")
 
             candidates = list_inventory_candidates(out_dir)
             options = {format_run_label(p): p for p in candidates}

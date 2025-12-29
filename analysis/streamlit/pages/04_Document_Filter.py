@@ -5,12 +5,13 @@ from typing import Dict, List, Optional
 import pandas as pd
 import streamlit as st
 
-APP_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(APP_ROOT) not in sys.path:
-    sys.path.insert(0, str(APP_ROOT))
+REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
-from src.io_utils import get_default_out_dir, load_inventory_df  # noqa: E402
+from src.io_utils import load_inventory_df  # noqa: E402
 from src.probe_io import list_probe_runs, load_probe_run  # noqa: E402
+from src.streamlit_config import get_output_dir  # noqa: E402
 
 st.set_page_config(page_title="Document Filter", layout="wide")
 
@@ -133,8 +134,12 @@ def main():
 
     picker = st.container()
     pick_cols = picker.columns([2, 2])
-    out_dir_text = pick_cols[0].text_input("Output folder", value=str(get_default_out_dir()))
-    runs = cached_list_probe_runs(out_dir_text)
+    out_dir = get_output_dir()
+    with pick_cols[0]:
+        st.caption("Output folder (from Configuration page)")
+        st.code(str(out_dir), language="text")
+        st.page_link("pages/00_Configuration.py", label="Update output folder", icon="🧭")
+    runs = cached_list_probe_runs(str(out_dir))
     if not runs:
         picker.warning("No probe runs detected under this output folder yet.")
         st.stop()
@@ -144,7 +149,7 @@ def main():
     selected_label = pick_cols[1].selectbox("Probe run", labels)
     selected_run = options[selected_label]
 
-    docs_df, _pages_df, _summary, run_log = cached_load_probe_run(out_dir_text, selected_run["probe_run_id"])
+    docs_df, _pages_df, _summary, run_log = cached_load_probe_run(str(out_dir), selected_run["probe_run_id"])
     if docs_df.empty:
         st.warning("This probe run does not contain document-level metrics yet.")
         st.stop()
