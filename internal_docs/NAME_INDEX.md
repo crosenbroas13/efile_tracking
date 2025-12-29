@@ -43,6 +43,16 @@ points to the newest run.
 - `name_index_summary.json` — counts and run configuration
 - `name_index_run_log.json` — audit log with configuration + error summary
 
+## Streamlit testing view (mock)
+Use the Streamlit **Name Search (Mock)** page to review the layout and workflow without running
+the full pipeline yet. It ships with sample data so non-technical reviewers can validate
+search, filters, and CSV export before you publish a real name index.
+
+Launch the dashboards and open **Name Search (Mock)** from the sidebar:
+```bash
+streamlit run analysis/streamlit/Home.py
+```
+
 ## Why this matters (plain language)
 This index helps non-technical reviewers answer **“where does this name appear?”** without
 exposing document text. It provides **searchable metadata** while keeping sensitive content
