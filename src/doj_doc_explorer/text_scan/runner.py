@@ -53,7 +53,7 @@ def run_text_scan(
 
     candidates = candidates[candidates["pages_with_text"] >= config.min_text_pages].copy()
     if candidates.empty:
-        raise SystemExit("No probe docs meet the minimum text page requirement.")
+        raise SystemExit("No probe internal_docs meet the minimum text page requirement.")
 
     candidates = candidates.merge(
         pdfs_df[["doc_id", "rel_path", "probe_path", "abs_path", "top_level_folder"]],

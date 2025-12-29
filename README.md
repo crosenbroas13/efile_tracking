@@ -149,7 +149,7 @@ python -m doj_doc_explorer.cli probe run --inventory LATEST --out ./outputs --ru
 - `outputs/name_index/<run_id>/name_index_run_log.json`
 - `outputs/name_index/LATEST.json`
 
-See [docs/NAME_INDEX.md](docs/NAME_INDEX.md) for a plain-language summary and limitations.
+See [docs/NAME_INDEX.md](internal_docs/NAME_INDEX.md) for a plain-language summary and limitations.
 
 ## PDF type labeling (rerun-safe)
 Use this workflow when you need a human-reviewed PDF type label that stays valid even if you rerun inventory or probe jobs later.
@@ -229,7 +229,7 @@ python -m doj_doc_explorer.cli doc_type train \
   --labels outputs/labels/pdf_type_labels.csv \
   --out ./outputs
 
-# Predict doc types for selected docs (optionally only unlabeled).
+# Predict doc types for selected internal_docs (optionally only unlabeled).
 python -m doj_doc_explorer.cli doc_type predict \
   --inventory LATEST \
   --probe LATEST \
@@ -237,7 +237,7 @@ python -m doj_doc_explorer.cli doc_type predict \
   --out ./outputs \
   --only-unlabeled
 
-# Queue the lowest-confidence docs for the next labeling batch.
+# Queue the lowest-confidence internal_docs for the next labeling batch.
 python -m doj_doc_explorer.cli doc_type queue \
   --inventory LATEST \
   --probe LATEST \
@@ -248,7 +248,7 @@ python -m doj_doc_explorer.cli doc_type queue \
 
 ## Streamlit QA dashboards
 - Multipage launcher: `streamlit run analysis/streamlit/Home.py -- --out ./outputs`. Use `--server.headless true` if you are running on a remote machine and need a URL to connect from your browser.
-- **Set the output folder once**: open the **Configuration** page inside Streamlit and enter the output folder path. Every page will reuse that path automatically. You can still prefill it by setting `DOJ_OUTPUT_DIR` (or passing `-- --out ...`) before you launch Streamlit. See [docs/STREAMLIT_OUTPUT_SETUP.md](docs/STREAMLIT_OUTPUT_SETUP.md) for a short, non-technical walkthrough.
+- **Set the output folder once**: open the **Configuration** page inside Streamlit and enter the output folder path. Every page will reuse that path automatically. You can still prefill it by setting `DOJ_OUTPUT_DIR` (or passing `-- --out ...`) before you launch Streamlit. See [docs/STREAMLIT_OUTPUT_SETUP.md](internal_docs/STREAMLIT_OUTPUT_SETUP.md) for a short, non-technical walkthrough.
 - Pages read stored artifacts only; they do not rerun inventories or probes. Point them at `./outputs` to pick up the latest versioned runs via `LATEST.json`.
 - **Local-first reminder:** the dashboards can run straight from this repo without a separate install step because the app loads modules from the `src/` folder. If you prefer a traditional install, `pip install -e .` still works the same.
 - **Home page (executive snapshot):** the landing view now auto-loads the *latest inventory and probe* and presents a **non-technical summary**:

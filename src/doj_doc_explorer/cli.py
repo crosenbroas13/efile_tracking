@@ -104,7 +104,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=500,
         help="Fail-safe cap on unique names per document",
     )
-    probe_run.add_argument("--text-scan-max-docs", type=int, default=0, help="Limit text scan PDFs (0 = all)")
+    probe_run.add_argument("--text-scan-max-internal_docs", type=int, default=0, help="Limit text scan PDFs (0 = all)")
     probe_run.add_argument("--text-scan-max-pages", type=int, default=0, help="Limit pages per PDF for text scan (0 = all)")
     probe_run.add_argument(
         "--text-scan-min-text-pages",
@@ -141,7 +141,7 @@ def build_parser() -> argparse.ArgumentParser:
     text_scan_run.add_argument("--inventory", default="LATEST", help="Inventory path or run id or LATEST")
     text_scan_run.add_argument("--probe", default="LATEST", help="Probe run id, path, or LATEST")
     text_scan_run.add_argument("--out", default=str(DEFAULT_OUTPUT_ROOT), help="Outputs root")
-    text_scan_run.add_argument("--max-docs", type=int, default=0, help="Limit number of PDFs (0 = all)")
+    text_scan_run.add_argument("--max-internal_docs", type=int, default=0, help="Limit number of PDFs (0 = all)")
     text_scan_run.add_argument("--max-pages", type=int, default=0, help="Limit pages per PDF (0 = all)")
     text_scan_run.add_argument(
         "--min-text-pages",
@@ -253,20 +253,20 @@ def build_parser() -> argparse.ArgumentParser:
     doc_train.add_argument("--eval-split", type=float, default=0.2, help="Eval split fraction")
     doc_train.set_defaults(func=run_doc_type_train_cmd)
 
-    doc_predict = doc_type_sub.add_parser("predict", help="Predict doc types for selected docs")
+    doc_predict = doc_type_sub.add_parser("predict", help="Predict doc types for selected internal_docs")
     doc_predict.add_argument("--inventory", default="LATEST", help="Inventory path or run id or LATEST")
     doc_predict.add_argument("--probe", default="LATEST", help="Probe run id, path, or LATEST")
     doc_predict.add_argument("--model", default="LATEST", help="Doc-type model reference (LATEST, path, or model id)")
     doc_predict.add_argument("--selection", default="", help="Optional CSV with rel_path or doc_id to score")
     doc_predict.add_argument("--out", default=str(DEFAULT_OUTPUT_ROOT), help="Outputs root")
-    doc_predict.add_argument("--only-unlabeled", action="store_true", help="Predict only unlabeled docs")
+    doc_predict.add_argument("--only-unlabeled", action="store_true", help="Predict only unlabeled internal_docs")
     doc_predict.set_defaults(func=run_doc_type_predict_cmd)
 
-    doc_queue = doc_type_sub.add_parser("queue", help="Queue low-confidence docs for labeling")
+    doc_queue = doc_type_sub.add_parser("queue", help="Queue low-confidence internal_docs for labeling")
     doc_queue.add_argument("--inventory", default="LATEST", help="Inventory path or run id or LATEST")
     doc_queue.add_argument("--probe", default="LATEST", help="Probe run id, path, or LATEST")
     doc_queue.add_argument("--model", default="LATEST", help="Doc-type model reference (LATEST, path, or model id)")
-    doc_queue.add_argument("--k", type=int, default=200, help="Number of docs to queue")
+    doc_queue.add_argument("--k", type=int, default=200, help="Number of internal_docs to queue")
     doc_queue.add_argument("--out", default=str(DEFAULT_OUTPUT_ROOT), help="Outputs root")
     doc_queue.set_defaults(func=run_doc_type_queue_cmd)
 
@@ -714,7 +714,7 @@ def run_doc_type_queue_cmd(args: argparse.Namespace) -> None:
     )
     queue_path = ensure_dir(outputs_root / "labels") / "label_queue.csv"
     queue_df.to_csv(queue_path, index=False)
-    print(f"Wrote label queue with {len(queue_df)} docs to {queue_path}")
+    print(f"Wrote label queue with {len(queue_df)} internal_docs to {queue_path}")
 
 
 def run_pdf_type_migrate_cmd(args: argparse.Namespace) -> None:

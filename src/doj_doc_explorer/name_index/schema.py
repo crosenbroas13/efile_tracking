@@ -118,7 +118,7 @@ class NameRecord:
             "display_name": self.display_name,
             "variants": sorted(set(self.variants)),
             "total_count": self.total_count(),
-            "docs": docs_list,
+            "internal_docs": docs_list,
         }
 
 
@@ -203,7 +203,7 @@ def normalize_person_name(
 def build_public_records(records: Sequence[Dict[str, object]]) -> List[Dict[str, object]]:
     public_records: List[Dict[str, object]] = []
     for record in records:
-        docs = record.get("docs", [])
+        docs = record.get("internal_docs", [])
         public_docs = []
         for doc in docs:
             public_docs.append(
@@ -222,7 +222,7 @@ def build_public_records(records: Sequence[Dict[str, object]]) -> List[Dict[str,
             {
                 "canonical_key": record.get("canonical_key"),
                 "display_name": record.get("display_name"),
-                "docs": public_docs,
+                "internal_docs": public_docs,
             }
         )
     return public_records

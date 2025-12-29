@@ -54,7 +54,7 @@ def test_page_indexing_counts_across_pages():
     accumulator.add(normalized, doc, page_num=2, count=2)
     records = accumulator.to_records()
     assert len(records) == 1
-    doc_entry = records[0]["docs"][0]
+    doc_entry = records[0]["internal_docs"][0]
     pages = {page["page_num"]: page["count"] for page in doc_entry["pages"]}
     assert pages[1] == 1
     assert pages[2] == 2
@@ -77,7 +77,7 @@ def test_outputs_do_not_store_raw_text(tmp_path: Path):
             "display_name": "John Smith",
             "variants": ["john smith", "smith john", "smith, john"],
             "total_count": 2,
-            "docs": [
+            "internal_docs": [
                 {
                     "doc_id": "doc-1",
                     "rel_path": "folder/file.pdf",

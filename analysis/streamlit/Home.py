@@ -214,7 +214,7 @@ else:
         suspicious_count = len(suspicious_df)
 
         metric_cols = st.columns(3)
-        metric_cols[0].metric("Probe text-based docs", f"{text_based_count:,}")
+        metric_cols[0].metric("Probe text-based internal_docs", f"{text_based_count:,}")
         metric_cols[1].metric(
             "Verified good text (GOOD)",
             f"{verified_count:,} ({_format_pct(verified_count, text_based_count)})",

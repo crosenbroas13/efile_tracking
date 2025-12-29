@@ -114,7 +114,7 @@ def _summarize(records: List[Dict[str, object]], meta: Dict[str, object]) -> Dic
     doc_ids: set[str] = set()
     total_mentions = 0
     for record in records:
-        docs = record.get("docs", [])
+        docs = record.get("internal_docs", [])
         for doc in docs:
             doc_id = doc.get("doc_id")
             if doc_id:
