@@ -295,7 +295,7 @@ Use this checklist to understand what lives where. It is written in plain langua
   - `.gitignore`: Prevents temporary data (such as outputs or virtual environments) from being committed.
   - `pyproject.toml`: Defines the Python package name, dependencies, and build settings.
   - `docs/AUDIT_REPORT.md`: A narrative audit of entry points, data flow, and migration plans for the toolkit.
-  - `site/`: A simple, static GitHub Pages-ready homepage that explains the public catalog in non-technical terms and links back to DOJ sources. The site does **not** host documents; it only displays metadata and transparent DOJ links.
+  - `docs/`: A simple, static GitHub Pages-ready homepage (served from `/docs`) that explains the public catalog in non-technical terms and links back to DOJ sources. The site does **not** host documents; it only displays metadata and transparent DOJ links. The UI assets live under `docs/site/`, while `docs/index.html` points at those assets.
 
 - **Pipelines (ingest + processing)**
   - `pipelines/base/`: The shared ingestion pipeline (inventory, probe, and disclosure download).
