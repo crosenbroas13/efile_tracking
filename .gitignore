@@ -3,6 +3,6 @@ __pycache__/
 .venv/
 outputs/
 data/
-!docs/site/data/
-!docs/site/data/public_index.json
+!docs/data/
+!docs/data/public_index.json
 .streamlit/
