@@ -12,6 +12,10 @@ This toolkit inventories DOJ document drops and runs light-touch probes to estim
    ```bash
    pip install -e .
    ```
+   Optional (audio pipeline only):
+   ```bash
+   pip install -e ".[audio]"
+   ```
 3. Run a self-check to create the expected folders.
    ```bash
    python -m doj_doc_explorer.cli self-check
@@ -26,14 +30,25 @@ This toolkit inventories DOJ document drops and runs light-touch probes to estim
    ```
 
 ## Minimal inputs
-- **PyCharm scripts**: open `scripts/run_inventory.py` or `scripts/run_probe.py`, edit the two constants at the top (data root/output or inventory/output), and click Run. They now call the same maintained CLI code path, so you can swap between editor-run scripts and terminal commands without worrying about drift.
+- **PyCharm scripts**: open `pipelines/base/scripts/run_inventory.py` or `pipelines/base/scripts/run_probe.py`, edit the two constants at the top (data root/output or inventory/output), and click Run. They now call the same maintained CLI code path, so you can swap between editor-run scripts and terminal commands without worrying about drift.
 - **CLI**: stick to the commands above; change only the `--root` or `--inventory` values and the output folder if you want a different location. All entry points are backed by the single `doj_doc_explorer.cli` module to reduce duplicated logic.
+
+## Pipeline layout (plain language)
+The repository now groups ingestion into a single **pipeline tree** that starts with the **base pipeline** and then branches into **PDF**, **audio**, and **other** processing. This keeps the intake steps consistent while making it easy to see what comes next.
+
+```
+pipelines/
+  base/   -> inventory, probe, and disclosure downloader (the shared starting point)
+  pdf/    -> PDF-specific follow-on steps (labeling, doc-type, text scan)
+  audio/  -> local-only audio inventory + transcription
+  other/  -> placeholder for future non-PDF/non-audio pipelines
+```
 
 ## DOJ disclosure downloader (networked)
 Use this script when you need to **mirror the official DOJ disclosure page** onto your local disk for later review.
 
 ```bash
-python doj_disclosures_downloader.py
+python pipelines/base/doj_disclosures_downloader.py
 ```
 
 ### What it does (plain language)
@@ -206,7 +221,7 @@ python -m doj_doc_explorer.cli doc_type queue \
 ```
 
 ## Streamlit QA dashboards
-- Multipage launcher: `streamlit run app/Home.py -- --out ./outputs`. Use `--server.headless true` if you are running on a remote machine and need a URL to connect from your browser.
+- Multipage launcher: `streamlit run analysis/streamlit/Home.py -- --out ./outputs`. Use `--server.headless true` if you are running on a remote machine and need a URL to connect from your browser.
 - **Set the output folder once**: to avoid retyping the output path on each page, set `DOJ_OUTPUT_DIR` (or pass `-- --out ...`) before you launch Streamlit. See [docs/STREAMLIT_OUTPUT_SETUP.md](docs/STREAMLIT_OUTPUT_SETUP.md) for a short, non-technical walkthrough.
 - Pages read stored artifacts only; they do not rerun inventories or probes. Point them at `./outputs` to pick up the latest versioned runs via `LATEST.json`.
 - **Local-first reminder:** the dashboards can run straight from this repo without a separate install step because the app loads modules from the `src/` folder. If you prefer a traditional install, `pip install -e .` still works the same.
@@ -254,21 +269,25 @@ Use this checklist to understand what lives where. It is written in plain langua
   - `pyproject.toml`: Defines the Python package name, dependencies, and build settings.
   - `docs/AUDIT_REPORT.md`: A narrative audit of entry points, data flow, and migration plans for the toolkit.
 
-- **Helper scripts**
-  - `scripts/run_inventory.py`: Simple entry point for IDE users; edit two constants to scan a folder and write inventory outputs.
-  - `scripts/run_probe.py`: IDE-friendly probe launcher that locates the latest inventory (or a specific run ID) and saves readiness metrics.
-  - `doj_disclosures_downloader.py`: Networked downloader that mirrors the DOJ Epstein disclosure accordion into `outputs/doj_disclosures/` with a manifest to avoid re-downloading unchanged files.
+- **Pipelines (ingest + processing)**
+  - `pipelines/base/`: The shared ingestion pipeline (inventory, probe, and disclosure download).
+    - `pipelines/base/scripts/run_inventory.py`: IDE-friendly entry point; edit two constants to scan a folder and write inventory outputs.
+    - `pipelines/base/scripts/run_probe.py`: IDE-friendly probe launcher that locates the latest inventory (or a specific run ID) and saves readiness metrics.
+    - `pipelines/base/doj_disclosures_downloader.py`: Networked downloader that mirrors the DOJ Epstein disclosure accordion into `outputs/doj_disclosures/` with a manifest to avoid re-downloading unchanged files.
+  - `pipelines/pdf/`: PDF-only workflows (labeling + doc-type utilities live in `src/doj_doc_explorer/pdf_type/`).
+  - `pipelines/audio/`: Local-only audio inventory + transcription pipeline with its own README and optional dependencies.
+  - `pipelines/other/`: Placeholder for additional non-PDF, non-audio pipelines.
 
-- **Streamlit dashboards**
-  - `app/Home.py`: Landing page that introduces the dashboards and explains how to navigate them safely.
-  - `app/qa_fileimport.py`: Main Streamlit view for browsing inventories, highlighting potential issues, and exporting a PDF summary.
-  - `app/pages/01_Inventory_QA.py`: Thin wrapper that hosts the inventory QA view inside the multipage app.
-  - `app/pages/02_Probe_QA.py`: Probe results viewer with charts and download buttons for the readiness metrics.
-  - `app/pages/03_Probe_Run_Compare.py`: Side-by-side comparison page for two probe runs, highlighting shifts in totals, document-level readiness, and **non-PDF inventory file types** (so reviewers can see if new spreadsheets, images, or text files were added between runs).
-- `app/pages/04_Document_Filter.py`: Filterable document table that merges probe outputs with inventory metadata so reviewers can quickly spot long, low-text, or unusual files without opening the PDFs.
-- `app/pages/04_Probe_Document_Viewer.py`: Single-document preview page with relative path search and alternate image previews for PDF files.
-- `app/pages/05_Text_Based_Documents.py`: Focused view for **verified GOOD text-based PDFs** that blends probe results with **Text Scan** quality signals. It now **shows only confirmed good text** (so reviewers see what is immediately searchable), displays the **percent of the overall inventory** these documents represent, and adds a **context type mix chart** so non-technical reviewers can understand the content profile at a glance. A **filtered download table** lets reviewers export only the documents they want by content type, page count, and text quality score. The preview toggle includes a **Chrome-safe rendered image** option, which is helpful when embedded PDFs are blocked in a browser or when sharing with non-technical reviewers who need a quick visual check without downloading files.
-  - `app/pages/06_PDF_Labeling.py`: Guided labeling workspace for PDF type review. It **only lists PDFs up to five pages** (using the latest probe run’s page counts), **excludes verified GOOD text documents**, and includes a **suspicious text layer queue** (EMPTY/LOW quality) so reviewers can relabel or OCR flagged files quickly. It renders up to five page images so non-technical reviewers can label without opening an embedded PDF viewer.
+- **Streamlit dashboards (analysis + QA)**
+  - `analysis/streamlit/Home.py`: Landing page that introduces the dashboards and explains how to navigate them safely.
+  - `analysis/streamlit/qa_fileimport.py`: Main Streamlit view for browsing inventories, highlighting potential issues, and exporting a PDF summary.
+  - `analysis/streamlit/pages/01_Inventory_QA.py`: Thin wrapper that hosts the inventory QA view inside the multipage app.
+  - `analysis/streamlit/pages/02_Probe_QA.py`: Probe results viewer with charts and download buttons for the readiness metrics.
+  - `analysis/streamlit/pages/03_Probe_Run_Compare.py`: Side-by-side comparison page for two probe runs, highlighting shifts in totals, document-level readiness, and **non-PDF inventory file types** (so reviewers can see if new spreadsheets, images, or text files were added between runs).
+  - `analysis/streamlit/pages/04_Document_Filter.py`: Filterable document table that merges probe outputs with inventory metadata so reviewers can quickly spot long, low-text, or unusual files without opening the PDFs.
+  - `analysis/streamlit/pages/04_Probe_Document_Viewer.py`: Single-document preview page with relative path search and alternate image previews for PDF files.
+  - `analysis/streamlit/pages/05_Text_Based_Documents.py`: Focused view for **verified GOOD text-based PDFs** that blends probe results with **Text Scan** quality signals. It now **shows only confirmed good text** (so reviewers see what is immediately searchable), displays the **percent of the overall inventory** these documents represent, and adds a **context type mix chart** so non-technical reviewers can understand the content profile at a glance. A **filtered download table** lets reviewers export only the documents they want by content type, page count, and text quality score. The preview toggle includes a **Chrome-safe rendered image** option, which is helpful when embedded PDFs are blocked in a browser or when sharing with non-technical reviewers who need a quick visual check without downloading files.
+  - `analysis/streamlit/pages/06_PDF_Labeling.py`: Guided labeling workspace for PDF type review. It **only lists PDFs up to five pages** (using the latest probe run’s page counts), **excludes verified GOOD text documents**, and includes a **suspicious text layer queue** (EMPTY/LOW quality) so reviewers can relabel or OCR flagged files quickly. It renders up to five page images so non-technical reviewers can label without opening an embedded PDF viewer.
 
 - **Core package (`src/` folder)**
   - `src/__init__.py`: Exposes the `InventoryRunner` and result dataclass for simple imports.

@@ -8,7 +8,7 @@ This module provides a **local-only** audio transcription + optional speaker dia
 
 ## Project Layout
 ```
-audio_pipeline/
+pipelines/audio/
   run_inventory.py
   pipeline/
     config.py
@@ -28,31 +28,36 @@ audio_pipeline/
 ```
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -e ".[audio]"
+```
+
+If you prefer the standalone requirements file, run:
+```
+pip install -r pipelines/audio/requirements.txt
 ```
 
 **System dependency:** `ffmpeg` / `ffprobe` should be available on your PATH for duration detection.
 
 ## Run the Inventory
 ```
-python run_inventory.py --input /path/to/media --output /path/to/output
+python pipelines/audio/run_inventory.py --input /path/to/media --output /path/to/output
 ```
 
 ### Example (CPU-friendly)
 ```
-python run_inventory.py --input ./samples --output ./outputs --model base --device cpu
+python pipelines/audio/run_inventory.py --input ./samples --output ./outputs --model base --device cpu
 ```
 
 ### Dry Run / Small Batch
 ```
-python run_inventory.py --input ./samples --output ./outputs --max_files 3
+python pipelines/audio/run_inventory.py --input ./samples --output ./outputs --max_files 3
 ```
 
 ## Optional Diarization (Explicit Opt-In)
 Diarization uses `pyannote.audio` via WhisperX. This may require **Hugging Face model downloads**, which are **opt-in** and **local** once cached.
 
 ```
-python run_inventory.py --input ./samples --output ./outputs --diarize true --hf_token YOUR_TOKEN
+python pipelines/audio/run_inventory.py --input ./samples --output ./outputs --diarize true --hf_token YOUR_TOKEN
 ```
 
 If you do **not** want external downloads, leave diarization disabled.
@@ -100,7 +105,7 @@ Use JSON or YAML to define defaults (e.g., keywords):
 ```
 Run with:
 ```
-python run_inventory.py --input ./samples --output ./outputs --config config.json
+python pipelines/audio/run_inventory.py --input ./samples --output ./outputs --config config.json
 ```
 
 ## CPU Runtime Notes
