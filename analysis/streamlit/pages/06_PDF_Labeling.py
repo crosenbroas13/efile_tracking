@@ -3,9 +3,9 @@ import sys
 from pathlib import Path, PurePosixPath
 from typing import Dict, Optional
 
-APP_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(APP_ROOT) not in sys.path:
-    sys.path.insert(0, str(APP_ROOT))
+REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from datetime import datetime, timezone
 
@@ -28,14 +28,13 @@ from src.doj_doc_explorer.utils.fitz_loader import load_fitz_optional
 from src.doj_doc_explorer.utils.paths import normalize_rel_path
 from src.io_utils import (
     format_run_label,
-    get_default_out_dir,
     list_inventory_candidates,
     load_inventory_df,
-    normalize_out_dir,
     pick_default_inventory,
 )
 from src.probe_readiness import stable_doc_id
 from src.probe_io import list_probe_runs, load_probe_run
+from src.streamlit_config import get_output_dir
 from src.text_scan_io import load_latest_text_scan
 
 st.set_page_config(page_title="PDF Labeling", layout="wide")
@@ -218,8 +217,10 @@ selector = st.container()
 with selector:
     input_cols = st.columns([2, 2])
     with input_cols[0]:
-        out_dir_text = st.text_input("Output folder", value=str(get_default_out_dir()))
-        out_dir = normalize_out_dir(out_dir_text)
+        out_dir = get_output_dir()
+        st.caption("Output folder (from Configuration page)")
+        st.code(str(out_dir), language="text")
+        st.page_link("pages/00_Configuration.py", label="Update output folder", icon="🧭")
     with input_cols[1]:
         selected_path, selection_label = _build_inventory_selector(out_dir)
 
@@ -433,7 +434,7 @@ with detail_cols[1]:
     if candidate_paths:
         preview_row = candidate_df[candidate_df["rel_path"] == selected_rel_path].iloc[0]
         abs_path = str(preview_row.get("abs_path") or "")
-        pdf_path = _resolve_pdf_path(abs_path, out_dir_text)
+        pdf_path = _resolve_pdf_path(abs_path, str(out_dir))
         st.markdown("#### Chrome-safe PDF preview (up to 5 pages)")
         if not pdf_path or not pdf_path.exists():
             st.warning("PDF file not found on disk. Confirm the inventory path is still valid.")

@@ -7,13 +7,13 @@ from typing import Dict, List, Optional
 import pandas as pd
 import streamlit as st
 
-APP_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(APP_ROOT) not in sys.path:
-    sys.path.insert(0, str(APP_ROOT))
+REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from src.doj_doc_explorer.utils.fitz_loader import load_fitz_optional  # noqa: E402
-from src.io_utils import get_default_out_dir  # noqa: E402
 from src.probe_io import list_probe_runs, load_probe_run  # noqa: E402
+from src.streamlit_config import get_output_dir  # noqa: E402
 
 st.set_page_config(page_title="Probe Document Viewer", layout="wide")
 
@@ -138,8 +138,12 @@ def main() -> None:
     )
 
     pick_cols = st.columns([2, 3])
-    out_dir_text = pick_cols[0].text_input("Output folder", value=str(get_default_out_dir()))
-    runs = cached_list_probe_runs(out_dir_text)
+    out_dir = get_output_dir()
+    with pick_cols[0]:
+        st.caption("Output folder (from Configuration page)")
+        st.code(str(out_dir), language="text")
+        st.page_link("pages/00_Configuration.py", label="Update output folder", icon="🧭")
+    runs = cached_list_probe_runs(str(out_dir))
     if not runs:
         st.warning("No probe runs detected under this output folder yet.")
         st.stop()
@@ -148,7 +152,7 @@ def main() -> None:
     pick_cols[1].markdown("**Latest probe run**")
     pick_cols[1].markdown(_format_run_option(latest_run))
 
-    docs_df, _pages_df, _summary, run_log = cached_load_probe_run(out_dir_text, latest_run["probe_run_id"])
+    docs_df, _pages_df, _summary, run_log = cached_load_probe_run(str(out_dir), latest_run["probe_run_id"])
     if docs_df.empty:
         st.warning("No document records found in this probe run.")
         st.stop()
@@ -177,9 +181,9 @@ def main() -> None:
     selected_row = docs_df.loc[docs_df["doc_label"] == selected_label].iloc[0]
 
     if isinstance(run_log, dict):
-        output_root = run_log.get("output_root") or out_dir_text
+        output_root = run_log.get("output_root") or str(out_dir)
     else:
-        output_root = out_dir_text
+        output_root = str(out_dir)
     abs_path = str(selected_row.get("abs_path") or "")
     pdf_path = _resolve_pdf_path(abs_path, output_root)
 

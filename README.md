@@ -222,7 +222,7 @@ python -m doj_doc_explorer.cli doc_type queue \
 
 ## Streamlit QA dashboards
 - Multipage launcher: `streamlit run analysis/streamlit/Home.py -- --out ./outputs`. Use `--server.headless true` if you are running on a remote machine and need a URL to connect from your browser.
-- **Set the output folder once**: to avoid retyping the output path on each page, set `DOJ_OUTPUT_DIR` (or pass `-- --out ...`) before you launch Streamlit. See [docs/STREAMLIT_OUTPUT_SETUP.md](docs/STREAMLIT_OUTPUT_SETUP.md) for a short, non-technical walkthrough.
+- **Set the output folder once**: open the **Configuration** page inside Streamlit and enter the output folder path. Every page will reuse that path automatically. You can still prefill it by setting `DOJ_OUTPUT_DIR` (or passing `-- --out ...`) before you launch Streamlit. See [docs/STREAMLIT_OUTPUT_SETUP.md](docs/STREAMLIT_OUTPUT_SETUP.md) for a short, non-technical walkthrough.
 - Pages read stored artifacts only; they do not rerun inventories or probes. Point them at `./outputs` to pick up the latest versioned runs via `LATEST.json`.
 - **Local-first reminder:** the dashboards can run straight from this repo without a separate install step because the app loads modules from the `src/` folder. If you prefer a traditional install, `pip install -e .` still works the same.
 - **Home page (executive snapshot):** the landing view now auto-loads the *latest inventory and probe* and presents a **non-technical summary**:
@@ -280,6 +280,7 @@ Use this checklist to understand what lives where. It is written in plain langua
 
 - **Streamlit dashboards (analysis + QA)**
   - `analysis/streamlit/Home.py`: Landing page that introduces the dashboards and explains how to navigate them safely.
+  - `analysis/streamlit/pages/00_Configuration.py`: One-time configuration page where you set the output folder used by all dashboards.
   - `analysis/streamlit/qa_fileimport.py`: Main Streamlit view for browsing inventories, highlighting potential issues, and exporting a PDF summary.
   - `analysis/streamlit/pages/01_Inventory_QA.py`: Thin wrapper that hosts the inventory QA view inside the multipage app.
   - `analysis/streamlit/pages/02_Probe_QA.py`: Probe results viewer with charts and download buttons for the readiness metrics.

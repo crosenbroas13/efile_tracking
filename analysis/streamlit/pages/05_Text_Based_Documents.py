@@ -12,13 +12,13 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-APP_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(APP_ROOT) not in sys.path:
-    sys.path.insert(0, str(APP_ROOT))
+REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from src.doj_doc_explorer.utils.fitz_loader import load_fitz_optional  # noqa: E402
-from src.io_utils import get_default_out_dir  # noqa: E402
 from src.probe_io import list_probe_runs, load_probe_run  # noqa: E402
+from src.streamlit_config import get_output_dir  # noqa: E402
 from src.text_scan_io import load_latest_text_scan  # noqa: E402
 
 st.set_page_config(page_title="Text Based Documents", layout="wide")
@@ -351,8 +351,12 @@ def main() -> None:
     )
 
     pick_cols = st.columns([2, 3])
-    out_dir_text = pick_cols[0].text_input("Output folder", value=str(get_default_out_dir()))
-    runs = cached_list_probe_runs(out_dir_text)
+    out_dir = get_output_dir()
+    with pick_cols[0]:
+        st.caption("Output folder (from Configuration page)")
+        st.code(str(out_dir), language="text")
+        st.page_link("pages/00_Configuration.py", label="Update output folder", icon="🧭")
+    runs = cached_list_probe_runs(str(out_dir))
     if not runs:
         st.warning("No probe runs detected under this output folder yet.")
         st.stop()
@@ -361,7 +365,7 @@ def main() -> None:
     pick_cols[1].markdown("**Latest probe run**")
     pick_cols[1].markdown(_format_run_option(latest_run))
 
-    docs_df, _pages_df, _summary, run_log = cached_load_probe_run(out_dir_text, latest_run["probe_run_id"])
+    docs_df, _pages_df, _summary, run_log = cached_load_probe_run(str(out_dir), latest_run["probe_run_id"])
     if docs_df.empty:
         st.warning("No document records found in this probe run.")
         st.stop()
@@ -372,7 +376,7 @@ def main() -> None:
     )
 
     docs_df["rel_path_norm"] = docs_df["rel_path"].astype(str).map(_normalize_rel_path)
-    text_scan_df, _text_scan_summary, _text_scan_run_log = cached_load_latest_text_scan(out_dir_text)
+    text_scan_df, _text_scan_summary, _text_scan_run_log = cached_load_latest_text_scan(str(out_dir))
     if text_scan_df.empty:
         st.warning("No text scan runs found yet. Run a text scan to verify GOOD text quality.")
         st.stop()
@@ -485,9 +489,9 @@ def main() -> None:
     )
 
     if isinstance(run_log, dict):
-        output_root = run_log.get("output_root") or out_dir_text
+        output_root = run_log.get("output_root") or str(out_dir)
     else:
-        output_root = out_dir_text
+        output_root = str(out_dir)
 
     st.markdown("### Keyword search (verified text only)")
     st.caption(

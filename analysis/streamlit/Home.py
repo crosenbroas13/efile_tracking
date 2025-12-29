@@ -5,19 +5,19 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-APP_ROOT = Path(__file__).resolve().parent.parent
-if str(APP_ROOT) not in sys.path:
-    sys.path.insert(0, str(APP_ROOT))
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from src.doj_doc_explorer.utils.paths import normalize_rel_path  # noqa: E402
 from src.io_utils import (  # noqa: E402
     format_run_label,
-    get_default_out_dir,
     load_inventory_df,
     pick_default_inventory,
 )
 from src.probe_io import list_probe_runs, load_probe_run  # noqa: E402
 from src.qa_metrics import rollup_by_top_level  # noqa: E402
+from src.streamlit_config import get_output_dir  # noqa: E402
 from src.text_scan_io import load_latest_text_scan  # noqa: E402
 
 st.set_page_config(page_title="DOJ Toolkit", layout="wide")
@@ -89,16 +89,16 @@ st.markdown(
     """
 )
 
-out_dir = get_default_out_dir()
 with st.expander("Data sources", expanded=True):
     st.markdown(
         """
-        The dashboards read files stored on your machine only. Use the output folder below if your runs
-        live somewhere other than the default `./outputs`.
+        The dashboards read files stored on your machine only. Set the output folder once on the
+        Configuration page if your runs live somewhere other than the default `./outputs`.
         """
     )
-    out_dir_text = st.text_input("Output folder", value=str(out_dir))
-    out_dir = Path(out_dir_text).expanduser().resolve()
+    out_dir = get_output_dir()
+    st.code(str(out_dir), language="text")
+    st.page_link("pages/00_Configuration.py", label="Update output folder", icon="🧭")
 
 inventory_df, inventory_label = _load_latest_inventory(out_dir)
 if inventory_df.empty:

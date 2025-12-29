@@ -6,13 +6,13 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-APP_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(APP_ROOT) not in sys.path:
-    sys.path.insert(0, str(APP_ROOT))
+REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
-from src.io_utils import get_default_out_dir  # noqa: E402
 from src.probe_io import list_probe_runs, load_probe_run  # noqa: E402
 from src.probe_viz_helpers import format_pct, safe_pct, safe_series  # noqa: E402
+from src.streamlit_config import get_output_dir  # noqa: E402
 
 st.set_page_config(page_title="Probe QA", layout="wide")
 
@@ -118,8 +118,12 @@ def main():
 
     picker = st.container()
     pick_cols = picker.columns([2, 2, 1])
-    out_dir_text = pick_cols[0].text_input("Output folder", value=str(get_default_out_dir()))
-    runs = cached_list_probe_runs(out_dir_text)
+    out_dir = get_output_dir()
+    with pick_cols[0]:
+        st.caption("Output folder (from Configuration page)")
+        st.code(str(out_dir), language="text")
+        st.page_link("pages/00_Configuration.py", label="Update output folder", icon="🧭")
+    runs = cached_list_probe_runs(str(out_dir))
     if not runs:
         picker.warning("No probe runs detected under this output folder yet.")
         st.stop()
@@ -141,7 +145,7 @@ def main():
     )
     slider_cols[1].info("Redaction metrics are disabled for now.")
 
-    docs_df, pages_df, summary, run_log = cached_load_probe_run(out_dir_text, selected_run["probe_run_id"])
+    docs_df, pages_df, summary, run_log = cached_load_probe_run(str(out_dir), selected_run["probe_run_id"])
     totals = _compute_totals(docs_df, pages_df, summary)
 
     st.subheader("Executive summary")

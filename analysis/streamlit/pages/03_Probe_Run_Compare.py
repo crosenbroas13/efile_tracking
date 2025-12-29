@@ -6,13 +6,13 @@ from typing import Dict, List
 import pandas as pd
 import streamlit as st
 
-APP_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(APP_ROOT) not in sys.path:
-    sys.path.insert(0, str(APP_ROOT))
+REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
-from src.io_utils import get_default_out_dir  # noqa: E402
 from src.probe_io import list_probe_runs, load_probe_run  # noqa: E402
 from src.probe_viz_helpers import format_pct, safe_series  # noqa: E402
+from src.streamlit_config import get_output_dir  # noqa: E402
 
 st.set_page_config(page_title="Probe Run Compare", layout="wide")
 
@@ -127,8 +127,12 @@ def main():
 
     picker = st.container()
     pick_cols = picker.columns([2, 2, 2])
-    out_dir_text = pick_cols[0].text_input("Output folder", value=str(get_default_out_dir()))
-    runs = cached_list_probe_runs(out_dir_text)
+    out_dir = get_output_dir()
+    with pick_cols[0]:
+        st.caption("Output folder (from Configuration page)")
+        st.code(str(out_dir), language="text")
+        st.page_link("pages/00_Configuration.py", label="Update output folder", icon="🧭")
+    runs = cached_list_probe_runs(str(out_dir))
     if len(runs) < 2:
         picker.warning("Need at least two probe runs under this output folder to compare.")
         st.stop()
@@ -144,8 +148,8 @@ def main():
         st.info("Pick two different runs to see differences.")
         st.stop()
 
-    docs_a, pages_a, summary_a, run_log_a = cached_load_probe_run(out_dir_text, run_a["probe_run_id"])
-    docs_b, pages_b, summary_b, run_log_b = cached_load_probe_run(out_dir_text, run_b["probe_run_id"])
+    docs_a, pages_a, summary_a, run_log_a = cached_load_probe_run(str(out_dir), run_a["probe_run_id"])
+    docs_b, pages_b, summary_b, run_log_b = cached_load_probe_run(str(out_dir), run_b["probe_run_id"])
 
     totals_a = _compute_totals(docs_a, pages_a, summary_a)
     totals_b = _compute_totals(docs_b, pages_b, summary_b)
