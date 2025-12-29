@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DOJ Document Explorer — Public Catalog</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container">
+        <p class="site-kicker">DOJ Document Explorer — Public Catalog</p>
+        <h1>DOJ Document Explorer — Public Catalog</h1>
+        <p class="tagline">
+          A searchable, plain-English index of publicly released DOJ disclosure
+          documents.
+        </p>
+      </div>
+    </header>
+
+    <main class="container">
+      <section class="intro" aria-labelledby="what-this-is">
+        <h2 id="what-this-is">What this is</h2>
+        <p>
+          This site provides a lightweight index of publicly released documents
+          and files. It does not host source documents. Every result links back
+          to the official DOJ page so readers can review materials directly at
+          the source.
+        </p>
+      </section>
+
+      <section class="intro" aria-labelledby="how-it-works">
+        <h2 id="how-it-works">How it works</h2>
+        <ul>
+          <li>Documents are downloaded and analyzed locally.</li>
+          <li>
+            Files are categorized by document type (text PDFs, scanned text,
+            image-based files).
+          </li>
+          <li>Text quality checks identify which PDFs are truly searchable.</li>
+          <li>
+            Only metadata and summary signals are published here — not full
+            extracted text.
+          </li>
+          <li>
+            Each entry links back to the original DOJ source for transparency.
+          </li>
+        </ul>
+      </section>
+
+      <section class="catalog" aria-labelledby="catalog">
+        <div class="catalog-header">
+          <h2 id="catalog">Catalog</h2>
+          <p class="catalog-intro">
+            Use search to browse documents by title or summary. Click any result
+            to view the original source on justice.gov.
+          </p>
+        </div>
+
+        <div class="catalog-controls">
+          <label for="search" class="visually-hidden">Search</label>
+          <input
+            id="search"
+            type="search"
+            placeholder="Search by title or summary"
+            autocomplete="off"
+          />
+          <p id="status" class="status">Loading…</p>
+        </div>
+
+        <div id="catalog-content" class="catalog-content" aria-live="polite">
+          <div class="loading">Loading…</div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container">
+        <p>
+          Source documents are hosted by the U.S. Department of Justice. This
+          site publishes analysis metadata only.
+        </p>
+      </div>
+    </footer>
+
+    <script src="app.js"></script>
+  </body>
+</html>
