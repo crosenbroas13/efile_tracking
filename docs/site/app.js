@@ -25,6 +25,19 @@ const updateStatus = (visibleCount, totalCount) => {
   statusLine.textContent = `Showing ${visibleCount} of ${totalCount} documents`;
 };
 
+const isValidUrl = (value) => {
+  if (!value) {
+    return false;
+  }
+
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch (error) {
+    return false;
+  }
+};
+
 const buildCard = (item) => {
   const card = document.createElement("article");
   card.className = "card";
@@ -44,11 +57,20 @@ const buildCard = (item) => {
     <span><strong>Dataset:</strong> ${item.dataset}</span>
   `;
 
-  const link = document.createElement("a");
-  link.href = item.doj_url;
-  link.target = "_blank";
-  link.rel = "noopener noreferrer";
-  link.textContent = "View original on DOJ";
+  const hasValidUrl = isValidUrl(item.doj_url);
+  const link = document.createElement(hasValidUrl ? "a" : "span");
+  link.className = "card-link";
+  link.textContent = hasValidUrl ? "View original on DOJ" : "Source link pending";
+
+  if (hasValidUrl) {
+    link.href = item.doj_url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+  } else {
+    link.classList.add("card-link--disabled");
+    link.setAttribute("aria-disabled", "true");
+    link.title = "The DOJ source link is not yet available for this entry.";
+  }
 
   card.append(title, summary, meta, link);
   return card;
