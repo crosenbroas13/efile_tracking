@@ -1,0 +1,68 @@
+{
+  "meta": {
+    "last_updated": "2024-05-14",
+    "item_count": 6
+  },
+  "items": [
+    {
+      "id": "doj-epstein-0001",
+      "title": "Flight schedule summary (January 2002)",
+      "summary": "A brief schedule overview outlining travel dates and airports for January 2002.",
+      "doc_type_final": "TEXT_PDF",
+      "content_type": "Travel Log",
+      "page_count": 12,
+      "dataset": "DataSet 1",
+      "doj_url": "https://www.justice.gov/epstein/files/DataSet%201/EFTA00000018.pdf"
+    },
+    {
+      "id": "doj-epstein-0002",
+      "title": "Contact list supplement",
+      "summary": "A roster-style document with names, phone numbers, and handwritten notes.",
+      "doc_type_final": "IMAGE_OF_TEXT_PDF",
+      "content_type": "Directory",
+      "page_count": 7,
+      "dataset": "DataSet 1",
+      "doj_url": "https://www.justice.gov/epstein/files/DataSet%201/EFTA00000107.pdf"
+    },
+    {
+      "id": "doj-epstein-0003",
+      "title": "Scheduling correspondence excerpts",
+      "summary": "Email-like correspondence covering travel coordination and confirmations.",
+      "doc_type_final": "TEXT_PDF",
+      "content_type": "Email",
+      "page_count": 34,
+      "dataset": "DataSet 2",
+      "doj_url": "https://www.justice.gov/epstein/files/DataSet%202/EFTA00000482.pdf"
+    },
+    {
+      "id": "doj-epstein-0004",
+      "title": "Financial routing memo",
+      "summary": "A memo summarizing payment routing steps and related administrative notes.",
+      "doc_type_final": "TEXT_PDF",
+      "content_type": "Memo",
+      "page_count": 4,
+      "dataset": "DataSet 3",
+      "doj_url": "https://www.justice.gov/epstein/files/DataSet%203/EFTA00001355.pdf"
+    },
+    {
+      "id": "doj-epstein-0005",
+      "title": "Visitor log extracts",
+      "summary": "Selected log pages capturing arrivals, departures, and brief annotations.",
+      "doc_type_final": "IMAGE_PDF",
+      "content_type": "Log",
+      "page_count": 19,
+      "dataset": "DataSet 3",
+      "doj_url": "https://www.justice.gov/epstein/files/DataSet%203/EFTA00001570.pdf"
+    },
+    {
+      "id": "doj-epstein-0006",
+      "title": "Meeting notes (handwritten)",
+      "summary": "Scanned handwritten notes referencing follow-up tasks and attendees.",
+      "doc_type_final": "IMAGE_OF_TEXT_PDF",
+      "content_type": "Notes",
+      "page_count": 6,
+      "dataset": "DataSet 4",
+      "doj_url": "https://www.justice.gov/epstein/files/DataSet%204/EFTA00002009.pdf"
+    }
+  ]
+}
