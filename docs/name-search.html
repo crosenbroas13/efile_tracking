@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DOJ Document Explorer — Name Search</title>
+    <link rel="stylesheet" href="site/style.css" />
+  </head>
+  <body>
+    <nav class="site-nav">
+      <div class="container nav-inner">
+        <a class="nav-logo" href="index.html">DOJ Document Explorer</a>
+        <div class="nav-links">
+          <a href="index.html">Home</a>
+          <a href="name-search.html" aria-current="page">Name Search</a>
+        </div>
+      </div>
+    </nav>
+
+    <header class="site-header site-header--compact">
+      <div class="container">
+        <p class="site-kicker">Public Name Mentions Index</p>
+        <h1>Name Search</h1>
+        <p class="tagline">
+          Search for a person and see which DOJ disclosure documents mention
+          them, including page numbers and official links.
+        </p>
+      </div>
+    </header>
+
+    <main class="container">
+      <section class="intro" aria-labelledby="name-search-how">
+        <h2 id="name-search-how">What you are seeing</h2>
+        <p>
+          This page shows metadata from a public-safe name index. It never hosts
+          DOJ files or extracted text. Each result links back to the official
+          justice.gov source so you can review the document directly.
+        </p>
+        <p>
+          Try formats like <strong>John Smith</strong>,
+          <strong>Smith, John</strong>, or <strong>Smith John</strong>. Searches
+          are case-insensitive and ignore extra spaces.
+        </p>
+      </section>
+
+      <section class="catalog name-search" aria-labelledby="name-search">
+        <div class="catalog-header">
+          <h2 id="name-search">Search the Name Index</h2>
+          <p class="catalog-intro">
+            Results show the dataset, document title, page numbers, and total
+            mentions for each match.
+          </p>
+        </div>
+
+        <div class="catalog-controls search-controls">
+          <label for="name-query" class="visually-hidden">Person name</label>
+          <input
+            id="name-query"
+            type="search"
+            placeholder="Enter a person name"
+            autocomplete="off"
+          />
+          <button id="clear-search" class="btn-secondary" type="button">
+            Clear
+          </button>
+        </div>
+        <p id="index-status" class="status">Loading name index…</p>
+        <div id="search-feedback" class="search-feedback" aria-live="polite"></div>
+        <div id="results" class="results" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container">
+        <p>
+          Source documents are hosted by the U.S. Department of Justice. This
+          site publishes analysis metadata only.
+        </p>
+      </div>
+    </footer>
+
+    <script src="name-search.js"></script>
+  </body>
+</html>

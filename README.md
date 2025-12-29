@@ -296,6 +296,8 @@ Use this checklist to understand what lives where. It is written in plain langua
   - `pyproject.toml`: Defines the Python package name, dependencies, and build settings.
   - `docs/AUDIT_REPORT.md`: A narrative audit of entry points, data flow, and migration plans for the toolkit.
   - `docs/`: A simple, static GitHub Pages-ready homepage (served from `/docs`) that explains the public catalog in non-technical terms and links back to DOJ sources. The site does **not** host documents; it only displays metadata and transparent DOJ links. The UI assets live under `docs/site/`, while `docs/index.html` points at those assets.
+    - `docs/name-search.html` + `docs/name-search.js`: A public-friendly name lookup page that shows **only** document metadata (dataset, page numbers, and counts) and always links back to justice.gov, so non-technical reviewers can verify mentions without viewing extracted text.
+    - `docs/data/public_name_index.json`: The public-safe export consumed by the name search page. It stores normalized name variants, page counts, and DOJ URLs—never full text—so the site can safely answer “where is this name mentioned?” without hosting DOJ content.
 
 - **Pipelines (ingest + processing)**
   - `pipelines/base/`: The shared ingestion pipeline (inventory, probe, and disclosure download).
