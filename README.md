@@ -125,6 +125,32 @@ The **Text Based Documents** page now merges Text Scan signals so it can:
 - Provide a **content type breakdown** for text-ready documents,
 - Export **filtered verified-text tables** for sharing with reviewers.
 
+## Name Mentions Index (Public-Safe)
+The **Name Mentions Index** builds a **public-safe, searchable map of person-name mentions** for
+**VERIFIED GOOD text PDFs only**. It stores **page numbers and counts**, but **never stores raw text**.
+This helps non-technical reviewers answer **“where does this name appear?”** without exposing
+document contents.
+
+### CLI command
+```bash
+python -m doj_doc_explorer.cli name_index run --inventory LATEST --probe LATEST --text-scan LATEST --out ./outputs
+```
+
+### Optional in-probe run
+You can also run it right after a probe (it depends on Text Scan):
+```bash
+python -m doj_doc_explorer.cli probe run --inventory LATEST --out ./outputs --run-name-index
+```
+
+### Outputs
+- `outputs/name_index/<run_id>/name_index.jsonl`
+- `outputs/name_index/<run_id>/public_name_index.json`
+- `outputs/name_index/<run_id>/name_index_summary.json`
+- `outputs/name_index/<run_id>/name_index_run_log.json`
+- `outputs/name_index/LATEST.json`
+
+See [docs/NAME_INDEX.md](docs/NAME_INDEX.md) for a plain-language summary and limitations.
+
 ## PDF type labeling (rerun-safe)
 Use this workflow when you need a human-reviewed PDF type label that stays valid even if you rerun inventory or probe jobs later.
 
@@ -238,6 +264,7 @@ python -m doj_doc_explorer.cli doc_type queue \
 - `outputs/inventory/`: versioned inventory runs plus `LATEST.json`.
 - `outputs/probes/`: versioned probe runs plus `LATEST.json` referencing the inventory path.
 - `outputs/text_scan/`: text-quality and content-type scans plus `LATEST.json`.
+- `outputs/name_index/`: public-safe name mentions index plus `LATEST.json`.
 - `outputs/labels/`: PDF type labels, reconciliation reports, training snapshots, and predictions.
 - `outputs/models/doc_type/`: trained doc-type classifiers (`model.joblib`, `model_card.json`, `training_snapshot.csv`).
 - `outputs/classification/doc_type/`: prediction runs (`doc_type_predictions.csv`) created by the `doc_type predict` command.

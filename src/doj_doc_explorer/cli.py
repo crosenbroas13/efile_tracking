@@ -14,6 +14,8 @@ from .inventory.runner import InventoryRunner
 from .probe.runner import run_probe_and_save
 from .text_scan.config import TextQualityConfig, TextScanRunConfig
 from .text_scan.runner import run_text_scan_and_save
+from .name_index.config import NameIndexRunConfig
+from .name_index.runner import run_name_index_and_save
 from .utils.io import ensure_dir, latest_inventory, latest_probe, load_table, read_json, self_check, write_json
 from .utils.paths import normalize_rel_path
 from .classification.doc_type.constants import DEFAULT_DPI, DEFAULT_PAGES_SAMPLED, DEFAULT_SEED
@@ -81,6 +83,27 @@ def build_parser() -> argparse.ArgumentParser:
         default=True,
         help="Run text scan during the probe to enrich text-ready PDFs",
     )
+    probe_run.add_argument(
+        "--run-name-index",
+        dest="run_name_index",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Run name mentions index after the probe (requires text_scan)",
+    )
+    probe_run.add_argument(
+        "--name-index-only-verified-good",
+        dest="name_index_only_verified_good",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Restrict name index to VERIFIED GOOD text quality",
+    )
+    probe_run.add_argument("--name-index-min-total-count", type=int, default=1, help="Minimum total name count to keep")
+    probe_run.add_argument(
+        "--name-index-max-names-per-doc",
+        type=int,
+        default=500,
+        help="Fail-safe cap on unique names per document",
+    )
     probe_run.add_argument("--text-scan-max-docs", type=int, default=0, help="Limit text scan PDFs (0 = all)")
     probe_run.add_argument("--text-scan-max-pages", type=int, default=0, help="Limit pages per PDF for text scan (0 = all)")
     probe_run.add_argument(
@@ -147,6 +170,29 @@ def build_parser() -> argparse.ArgumentParser:
         help="Symbol ratio threshold for gibberish",
     )
     text_scan_run.set_defaults(func=run_text_scan_cmd)
+
+    name_index = subparsers.add_parser("name_index", help="Name mentions index commands")
+    name_index_sub = name_index.add_subparsers(dest="subcommand")
+    name_index_run = name_index_sub.add_parser("run", help="Run name mentions index against probe outputs")
+    name_index_run.add_argument("--inventory", default="LATEST", help="Inventory path or run id or LATEST")
+    name_index_run.add_argument("--probe", default="LATEST", help="Probe run id, path, or LATEST")
+    name_index_run.add_argument("--text-scan", default="LATEST", help="Text scan run id, path, or LATEST")
+    name_index_run.add_argument("--out", default=str(DEFAULT_OUTPUT_ROOT), help="Outputs root")
+    name_index_run.add_argument(
+        "--only-verified-good",
+        dest="only_verified_good",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Restrict indexing to VERIFIED GOOD text quality",
+    )
+    name_index_run.add_argument("--min-total-count", type=int, default=1, help="Minimum total name count to keep")
+    name_index_run.add_argument(
+        "--max-names-per-doc",
+        type=int,
+        default=500,
+        help="Fail-safe cap on unique names per document",
+    )
+    name_index_run.set_defaults(func=run_name_index_cmd)
 
     qa = subparsers.add_parser("qa", help="QA helpers")
     qa_sub = qa.add_subparsers(dest="subcommand")
@@ -292,6 +338,10 @@ def run_probe_cmd(args: argparse.Namespace) -> None:
         text_scan_min_text_pages=args.text_scan_min_text_pages,
         text_scan_store_snippet=args.text_scan_store_snippet,
         text_scan_quality=TextQualityConfig(),
+        run_name_index=args.run_name_index,
+        name_index_only_verified_good=args.name_index_only_verified_good,
+        name_index_min_total_count=args.name_index_min_total_count,
+        name_index_max_names_per_doc=args.name_index_max_names_per_doc,
     )
     run_dir = run_probe_and_save(config)
     print("Probe run complete")
@@ -327,6 +377,26 @@ def run_text_scan_cmd(args: argparse.Namespace) -> None:
     print("Text scan complete")
     print(f"Run dir  : {run_dir}")
     print(f"Summary  : {run_dir / 'text_scan_summary.json'}")
+
+
+def run_name_index_cmd(args: argparse.Namespace) -> None:
+    outputs_root = Path(args.out)
+    inventory_path = resolve_inventory_path(args.inventory, outputs_root)
+    probe_run_dir = resolve_probe_run_dir(args.probe, outputs_root)
+    text_scan_run_dir = resolve_text_scan_run_dir(args.text_scan, outputs_root)
+    config = NameIndexRunConfig(
+        inventory_path=inventory_path,
+        probe_run_dir=probe_run_dir,
+        text_scan_run_dir=text_scan_run_dir,
+        outputs_root=outputs_root,
+        only_verified_good=args.only_verified_good,
+        min_total_count=args.min_total_count,
+        max_names_per_doc=args.max_names_per_doc,
+    )
+    run_dir = run_name_index_and_save(config)
+    print("Name index complete")
+    print(f"Run dir  : {run_dir}")
+    print(f"Summary  : {run_dir / 'name_index_summary.json'}")
 
 
 def run_pdf_type_label_cmd(args: argparse.Namespace) -> None:
@@ -818,6 +888,26 @@ def resolve_probe_run_dir(value: str, outputs_root: Path) -> Path:
     if run_dir.exists():
         return run_dir
     raise SystemExit(f"Could not locate probe run at {value}")
+
+
+def resolve_text_scan_run_dir(value: str, outputs_root: Path) -> Path:
+    if value == "LATEST":
+        pointer = read_json(outputs_root / "text_scan" / "LATEST.json")
+        run_dir = pointer.get("run_dir")
+        if run_dir:
+            candidate = outputs_root / run_dir
+            if candidate.exists():
+                return candidate
+        raise SystemExit("No text_scan run found. Run text_scan first.")
+    candidate = Path(value)
+    if candidate.exists():
+        if candidate.is_dir():
+            return candidate
+        return candidate.parent
+    run_dir = outputs_root / "text_scan" / value
+    if run_dir.exists():
+        return run_dir
+    raise SystemExit(f"Could not locate text_scan run at {value}")
 
 
 def main(argv=None):

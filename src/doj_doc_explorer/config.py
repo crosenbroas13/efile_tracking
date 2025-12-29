@@ -68,6 +68,10 @@ class ProbeRunConfig:
     text_scan_min_text_pages: int = 1
     text_scan_store_snippet: bool = False
     text_scan_quality: TextQualityConfig = field(default_factory=TextQualityConfig)
+    run_name_index: bool = False
+    name_index_only_verified_good: bool = True
+    name_index_min_total_count: int = 1
+    name_index_max_names_per_doc: int = 500
 
     @property
     def run_args(self) -> dict:

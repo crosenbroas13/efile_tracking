@@ -13,10 +13,12 @@ from ..classification.doc_type.constants import DEFAULT_DPI, DEFAULT_PAGES_SAMPL
 from ..classification.doc_type.decision import apply_doc_type_decision
 from ..pdf_type.labels import labels_path, load_labels, match_labels_to_inventory
 from ..utils.paths import normalize_rel_path
-from ..utils.io import ensure_dir
+from ..utils.io import ensure_dir, load_table, read_json
 from ..text_scan.config import TextScanRunConfig
 from ..text_scan.io import merge_text_scan_signals
 from ..text_scan.runner import run_text_scan_and_save_for_probe
+from ..name_index.config import NameIndexRunConfig
+from ..name_index.runner import run_name_index_and_save_for_probe
 from .outputs import build_probe_run_id, write_probe_outputs
 
 
@@ -73,6 +75,7 @@ def run_probe_and_save(config: ProbeRunConfig) -> Path:
     ensure_dir(config.paths.outputs_root)
     probe_run_id = build_probe_run_id(config.paths.inventory)
     pages_df, docs_df, meta = run_probe(config)
+    text_scan_run_dir = None
     if config.run_text_scan:
         text_scan_run, text_scan_merge = _run_text_scan_for_probe(
             docs_df,
@@ -84,9 +87,21 @@ def run_probe_and_save(config: ProbeRunConfig) -> Path:
         meta["text_scan_run"] = text_scan_run
         if text_scan_merge.get("merged"):
             docs_df = text_scan_merge["docs_df"]
+        if text_scan_run.get("status") == "completed" and text_scan_run.get("run_dir"):
+            text_scan_run_dir = Path(str(text_scan_run["run_dir"]))
     else:
         meta["text_scan_merge"] = {"merged": False, "reason": "disabled"}
         meta["text_scan_run"] = {"status": "skipped", "reason": "disabled"}
+    if config.run_name_index:
+        name_index_run = _run_name_index_for_probe(
+            docs_df,
+            config,
+            text_scan_run_dir=text_scan_run_dir,
+            probe_run_id=probe_run_id,
+        )
+        meta["name_index_run"] = name_index_run
+    else:
+        meta["name_index_run"] = {"status": "skipped", "reason": "disabled"}
     return write_probe_outputs(pages_df, docs_df, config, meta, probe_run_id=probe_run_id)
 
 
@@ -195,6 +210,65 @@ def _run_text_scan_for_probe(
         "text_scan_run_id": run_dir.name,
         "probe_run_id": probe_run_id,
     }, merge_info
+
+
+def _run_name_index_for_probe(
+    docs_df: pd.DataFrame,
+    config: ProbeRunConfig,
+    *,
+    text_scan_run_dir: Path | None = None,
+    probe_run_id: str | None = None,
+) -> Dict[str, object]:
+    if config.skip_text_check:
+        return {"status": "skipped", "reason": "skip_text_check"}
+    if not config.run_text_scan:
+        return {"status": "skipped", "reason": "text_scan_disabled"}
+    probe_run_id = probe_run_id or build_probe_run_id(config.paths.inventory)
+    probe_run_dir = Path(config.paths.outputs_root) / "probes" / probe_run_id
+    if text_scan_run_dir is None:
+        text_scan_run_dir = _resolve_text_scan_run_dir(config.paths.outputs_root, probe_run_id)
+    if text_scan_run_dir is None:
+        return {"status": "skipped", "reason": "text_scan_not_found"}
+    name_index_config = NameIndexRunConfig(
+        inventory_path=config.paths.inventory,
+        probe_run_dir=probe_run_dir,
+        text_scan_run_dir=text_scan_run_dir,
+        outputs_root=config.paths.outputs_root,
+        only_verified_good=config.name_index_only_verified_good,
+        min_total_count=config.name_index_min_total_count,
+        max_names_per_doc=config.name_index_max_names_per_doc,
+    )
+    try:
+        run_dir, meta = run_name_index_and_save_for_probe(
+            name_index_config,
+            probe_docs=docs_df,
+            text_scan_df=load_table(text_scan_run_dir / "doc_text_signals"),
+        )
+    except SystemExit as exc:
+        return {"status": "skipped", "reason": str(exc)}
+    return {
+        "status": "completed",
+        "run_dir": str(run_dir),
+        "name_index_run_id": run_dir.name,
+        "probe_run_id": probe_run_id,
+        "meta": meta,
+    }
+
+
+def _resolve_text_scan_run_dir(outputs_root: Path, probe_run_id: str) -> Path | None:
+    text_scan_root = outputs_root / "text_scan"
+    pointer_path = text_scan_root / "LATEST.json"
+    if pointer_path.exists():
+        pointer = read_json(pointer_path)
+        run_dir = pointer.get("run_dir")
+        if run_dir:
+            candidate = outputs_root / run_dir
+            if candidate.exists():
+                return candidate
+    candidate = text_scan_root / probe_run_id
+    if candidate.exists():
+        return candidate
+    return None
 
 
 __all__ = ["run_probe", "run_probe_and_save"]
