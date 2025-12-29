@@ -202,7 +202,7 @@ body {
   display: block;
 }
 
-.card a {
+.card .card-link {
   margin-top: auto;
   text-decoration: none;
   color: #ffffff;
@@ -213,9 +213,19 @@ body {
   font-weight: 600;
 }
 
-.card a:focus,
-.card a:hover {
+.card .card-link:focus,
+.card .card-link:hover {
   background: #1e40af;
+}
+
+.card .card-link--disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+}
+
+.card .card-link--disabled:hover,
+.card .card-link--disabled:focus {
+  background: #94a3b8;
 }
 
 .loading,
