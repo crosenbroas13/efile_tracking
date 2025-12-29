@@ -1,10 +1,10 @@
 """PyCharm-friendly inventory runner: edit two constants and run."""
 from pathlib import Path
 
-from doj_doc_explorer.inventory.runner import InventoryRunner
+from src.doj_doc_explorer.inventory.runner import InventoryRunner
 
 DATA_ROOT = Path("./data")
-OUT_DIR = Path("./outputs")
+OUT_DIR = Path("/Users/caylabroas/Desktop/E Files/DataFiles/Outputs")
 
 
 def main() -> None:

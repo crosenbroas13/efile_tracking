@@ -22,7 +22,7 @@ Set `DOJ_OUTPUT_DIR` to the folder that contains your `inventory/`, `probes/`, a
 
 ### macOS / Linux (Terminal)
 ```bash
-export DOJ_OUTPUT_DIR="/full/path/to/outputs"
+export DOJ_OUTPUT_DIR="/Users/caylabroas/Desktop/E Files/DataFiles/Outputs"
 streamlit run analysis/streamlit/Home.py
 ```
 
@@ -38,7 +38,7 @@ streamlit run analysis/streamlit/Home.py
 If you prefer not to use environment variables, you can pass the folder once when you start Streamlit:
 
 ```bash
-streamlit run analysis/streamlit/Home.py -- --out /full/path/to/outputs
+streamlit run analysis/streamlit/Home.py -- --out "/Users/caylabroas/Desktop/E Files/DataFiles/Outputs"
 ```
 
 This `--out` value is picked up by all pages on launch, so the default is already filled in.
