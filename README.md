@@ -156,6 +156,24 @@ python -m doj_doc_explorer.cli probe run --inventory LATEST --out ./outputs --ru
 
 See [docs/NAME_INDEX.md](internal_docs/NAME_INDEX.md) for a plain-language summary and limitations.
 
+## Public catalog export (GitHub Pages)
+The GitHub Pages site (`docs/index.html`) reads a lightweight JSON catalog so reviewers can see **every file**, including
+non-PDF formats, without downloading any content. The export merges the **latest inventory** with the **latest probe**
+and **Text Scan** signals when available.
+
+### CLI command
+```bash
+python -m doj_doc_explorer.cli public_index run --inventory LATEST --probe LATEST --out ./outputs --dest docs/data/public_index.json
+```
+
+### Why this matters (plain language)
+- **Non-technical visibility**: reviewers get a single list that includes PDFs *and* non-PDFs, so nothing is hidden.
+- **Text readiness context**: when probe + Text Scan data are available, the catalog flags which PDFs are truly searchable.
+- **Metadata only**: the exported JSON contains file names, counts, and summary metadata—**never file contents**.
+
+### Output
+- `docs/data/public_index.json` — the public-safe catalog consumed by the GitHub Pages homepage.
+
 ## PDF type labeling (rerun-safe)
 Use this workflow when you need a human-reviewed PDF type label that stays valid even if you rerun inventory or probe jobs later.
 
