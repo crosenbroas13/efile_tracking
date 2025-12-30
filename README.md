@@ -207,6 +207,7 @@ python -m doj_doc_explorer.cli public_index run --inventory LATEST --probe LATES
 
 ### Output
 - `docs/data/public_index.json` — the public-safe catalog consumed by the GitHub Pages homepage.
+- `docs/data/public_summary.json` — a **tiny, quick-load snapshot** that includes only the latest inventory run ID, DataPull folder name, and total file/size counts. The homepage uses this first so non-technical viewers see the summary immediately while the full catalog loads.
 - **Homepage inventory visibility (plain language)**: the homepage now focuses on the **latest inventory run** only. It surfaces the **inventory run ID**, **DataPull folder name**, **total files**, **total bytes**, and the **count of VOL folders discovered**, then breaks the catalog down by **DataSet (VOL)** with file-type counts. This lets non-technical reviewers confirm the catalog reflects the **entire latest DOJ drop** and that every volume was captured.
 
 ## PDF type labeling (rerun-safe)

@@ -1,0 +1,13 @@
+{
+  "meta": {
+    "inventory": {
+      "run_id": "LATEST",
+      "source_root_name": "Sample DOJ release",
+      "totals": {
+        "files": 8,
+        "total_bytes": 2318272
+      },
+      "folder_count": 4
+    }
+  }
+}

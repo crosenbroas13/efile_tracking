@@ -102,6 +102,24 @@ def _resolve_content_type(extension: str, probe_row: Dict[str, Any], inventory_r
     return None
 
 
+def _build_inventory_meta(inventory_path: Path, inventory_summary: Dict[str, Any]) -> Dict[str, Any]:
+    source_root_name = inventory_summary.get("source_root_name") if inventory_summary else None
+    inventory_totals = inventory_summary.get("totals", {}) if inventory_summary else {}
+    folder_count = len(inventory_summary.get("folders", {})) if inventory_summary else None
+    return {
+        "run_id": inventory_path.parent.name,
+        "source_root_name": source_root_name,
+        "totals": inventory_totals,
+        "folder_count": folder_count,
+    }
+
+
+def build_public_summary_payload(*, inventory_path: Path) -> Dict[str, Any]:
+    inventory_summary = read_json(inventory_path.with_name("inventory_summary.json"))
+    inventory_meta = _build_inventory_meta(inventory_path, inventory_summary)
+    return {"meta": {"inventory": inventory_meta}}
+
+
 def build_public_index_payload(
     *,
     inventory_path: Path,
@@ -110,9 +128,8 @@ def build_public_index_payload(
 ) -> Dict[str, Any]:
     inventory_df = load_inventory_df(inventory_path)
     inventory_summary = read_json(inventory_path.with_name("inventory_summary.json"))
-    source_root_name = inventory_summary.get("source_root_name")
-    inventory_totals = inventory_summary.get("totals", {}) if inventory_summary else {}
-    folder_count = len(inventory_summary.get("folders", {})) if inventory_summary else None
+    inventory_meta = _build_inventory_meta(inventory_path, inventory_summary)
+    source_root_name = inventory_meta.get("source_root_name")
 
     resolved_probe_id = probe_run_id or _resolve_latest_probe_id(outputs_root)
     probe_docs = _load_probe_docs(outputs_root, resolved_probe_id) if resolved_probe_id else pd.DataFrame()
@@ -181,16 +198,11 @@ def build_public_index_payload(
         "item_count": len(items),
         "last_updated": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
         "inventory_path": str(inventory_path),
-        "inventory_run_id": inventory_path.parent.name,
+        "inventory_run_id": inventory_meta.get("run_id"),
         "probe_run_id": resolved_probe_id,
         "text_scan_run_id": text_scan_run_id,
         "source_root_name": source_root_name,
-        "inventory": {
-            "run_id": inventory_path.parent.name,
-            "source_root_name": source_root_name,
-            "totals": inventory_totals,
-            "folder_count": folder_count,
-        },
+        "inventory": inventory_meta,
         "probe": {
             "run_id": resolved_probe_id,
             "totals": probe_totals,
@@ -204,4 +216,13 @@ def write_public_index(payload: Dict[str, Any], output_path: Path) -> Path:
     return write_json(output_path, payload)
 
 
-__all__ = ["build_public_index_payload", "write_public_index"]
+def write_public_summary(payload: Dict[str, Any], output_path: Path) -> Path:
+    return write_json(output_path, payload)
+
+
+__all__ = [
+    "build_public_index_payload",
+    "build_public_summary_payload",
+    "write_public_index",
+    "write_public_summary",
+]

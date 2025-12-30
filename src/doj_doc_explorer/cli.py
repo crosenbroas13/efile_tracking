@@ -12,7 +12,12 @@ import pandas as pd
 from .config import DEFAULT_OUTPUT_ROOT, InventoryConfig, ProbePaths, ProbeRunConfig
 from .inventory.runner import InventoryRunner
 from .probe.runner import run_probe_and_save
-from .public_index.runner import build_public_index_payload, write_public_index
+from .public_index.runner import (
+    build_public_index_payload,
+    build_public_summary_payload,
+    write_public_index,
+    write_public_summary,
+)
 from .text_scan.config import TextQualityConfig, TextScanRunConfig
 from .text_scan.runner import run_text_scan_and_save
 from .name_index.config import NameIndexRunConfig
@@ -209,6 +214,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--dest",
         default="docs/data/public_index.json",
         help="Destination JSON path for the public catalog export",
+    )
+    public_index_run.add_argument(
+        "--summary-dest",
+        default="docs/data/public_summary.json",
+        help="Destination JSON path for the public catalog summary",
     )
     public_index_run.set_defaults(func=run_public_index_cmd)
 
@@ -434,11 +444,15 @@ def run_public_index_cmd(args: argparse.Namespace) -> None:
         outputs_root=outputs_root,
         probe_run_id=probe_run_id,
     )
+    summary_payload = build_public_summary_payload(inventory_path=inventory_path)
     output_path = Path(args.dest)
+    summary_output_path = Path(args.summary_dest)
     write_public_index(payload, output_path)
+    write_public_summary(summary_payload, summary_output_path)
     print("Public catalog export complete")
-    print(f"Output  : {output_path}")
-    print(f"Items   : {payload.get('meta', {}).get('item_count', 0)}")
+    print(f"Output   : {output_path}")
+    print(f"Summary  : {summary_output_path}")
+    print(f"Items    : {payload.get('meta', {}).get('item_count', 0)}")
 
 
 def run_pdf_type_label_cmd(args: argparse.Namespace) -> None:

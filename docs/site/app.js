@@ -143,7 +143,8 @@ const renderInventorySummary = (meta = {}, items = []) => {
 
   const inventoryMeta = meta.inventory || {};
   const totals = inventoryMeta.totals || {};
-  const folderCounts = countVolFolders(items);
+  const hasItems = Array.isArray(items) && items.length > 0;
+  const folderCounts = hasItems ? countVolFolders(items) : { totalDatasets: 0, volFolders: 0 };
   const inventoryRunId = inventoryMeta.run_id || meta.inventory_run_id;
   const inventorySource = inventoryMeta.source_root_name || meta.source_root_name;
   const resolvedFolderCount =
@@ -245,6 +246,19 @@ const loadCatalog = async () => {
   showLoading();
 
   try {
+    try {
+      const summaryResponse = await fetch("data/public_summary.json", {
+        cache: "no-store",
+      });
+
+      if (summaryResponse.ok) {
+        const summaryData = await summaryResponse.json();
+        renderInventorySummary(summaryData.meta || {}, []);
+      }
+    } catch (summaryError) {
+      // Summary is optional; fall back to full catalog fetch.
+    }
+
     const response = await fetch("data/public_index.json", {
       cache: "no-store",
     });
