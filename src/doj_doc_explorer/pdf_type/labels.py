@@ -12,7 +12,7 @@ import pandas as pd
 from src.probe_readiness import stable_doc_id
 
 from ..utils.io import ensure_dir, read_json, write_json
-from ..utils.paths import normalize_rel_path
+from ..utils.paths import normalize_rel_path, top_level_folder_from_rel_path
 
 LOGGER = logging.getLogger(__name__)
 
@@ -281,10 +281,7 @@ def _validate_label_row(
 
 
 def _top_level_folder_from_rel_path(rel_path: str) -> str:
-    if not rel_path:
-        return ""
-    parts = normalize_rel_path(rel_path).split("/")
-    return parts[0] if parts else ""
+    return top_level_folder_from_rel_path(rel_path)
 
 
 def _compute_doc_id(row: pd.Series) -> str:
