@@ -5,6 +5,8 @@ const catalogTitle = document.getElementById("catalog");
 const runSummaryTitle = document.getElementById("run-summary-title");
 
 let catalogItems = [];
+const FETCH_TIMEOUT_MS = 12000;
+const LOADING_HINT_MS = 3500;
 
 const showLoading = () => {
   if (catalogContent) {
@@ -38,6 +40,19 @@ const showPlaceholder = () => {
   }
   if (runSummaryStatus) {
     runSummaryStatus.textContent = "Latest inventory details unavailable.";
+  }
+  if (runSummaryMetrics) {
+    runSummaryMetrics.innerHTML = "";
+  }
+};
+
+const showTimeout = () => {
+  if (catalogContent) {
+    catalogContent.innerHTML =
+      "<div class=\"error\">The catalog is taking longer than expected to load. Please refresh or try again soon.</div>";
+  }
+  if (runSummaryStatus) {
+    runSummaryStatus.textContent = "Inventory details are still loading. Please refresh or try again soon.";
   }
   if (runSummaryMetrics) {
     runSummaryMetrics.innerHTML = "";
@@ -243,10 +258,20 @@ const renderCatalog = (items, meta = {}) => {
 
 const loadCatalog = async () => {
   showLoading();
+  let loadingHintTimer;
+  let timeoutId;
+  const controller = new AbortController();
 
   try {
+    loadingHintTimer = setTimeout(() => {
+      if (runSummaryStatus) {
+        runSummaryStatus.textContent = "Still loading inventory details. Thanks for your patience.";
+      }
+    }, LOADING_HINT_MS);
+    timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
     const response = await fetch("data/public_index.json", {
-      cache: "no-store",
+      cache: "default",
+      signal: controller.signal,
     });
 
     if (!response.ok) {
@@ -259,7 +284,14 @@ const loadCatalog = async () => {
     renderInventorySummary(data.meta || {}, catalogItems);
     renderCatalog(catalogItems, data.meta || {});
   } catch (error) {
-    showError();
+    if (error && error.name === "AbortError") {
+      showTimeout();
+    } else {
+      showError();
+    }
+  } finally {
+    clearTimeout(loadingHintTimer);
+    clearTimeout(timeoutId);
   }
 };
 
