@@ -195,6 +195,10 @@ The GitHub Pages site (`docs/index.html`) reads a lightweight JSON catalog so re
 non-PDF formats, without downloading any content. The export merges the **latest inventory** with the **latest probe**
 and **Text Scan** signals when available.
 
+### Viewer experience notes (plain language)
+- **Faster repeat visits**: the public catalog now lets browsers reuse cached data, so returning reviewers usually see the page load faster.
+- **Clearer slow-load feedback**: if the catalog takes a few seconds to load, the page shows a gentle “still loading” message. After ~12 seconds, it explains that the catalog is taking longer than expected and suggests retrying.
+
 ### CLI command
 ```bash
 python -m doj_doc_explorer.cli public_index run --inventory LATEST --probe LATEST --out ./outputs --dest docs/data/public_index.json
