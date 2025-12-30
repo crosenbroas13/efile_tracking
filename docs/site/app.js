@@ -38,6 +38,43 @@ const isValidUrl = (value) => {
 };
 
 const formatNumber = (value) => Number(value || 0).toLocaleString("en-US");
+const formatPct = (numerator, denominator) => {
+  if (!denominator || denominator <= 0) {
+    return "0%";
+  }
+  return `${Math.round((numerator / denominator) * 100)}%`;
+};
+
+const formatBytes = (value) => {
+  const bytes = Number(value || 0);
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return "0 B";
+  }
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  const size = bytes / 1024 ** exponent;
+  const precision = exponent === 0 ? 0 : 1;
+  return `${size.toFixed(precision)} ${units[exponent]}`;
+};
+
+const formatExtension = (value) => {
+  if (!value) {
+    return "(none)";
+  }
+  const normalized = String(value).trim();
+  if (!normalized || normalized === "(none)") {
+    return "(none)";
+  }
+  return normalized.replace(".", "").toUpperCase();
+};
+
+const formatPageCount = (value) => {
+  const pages = Number(value || 0);
+  if (!Number.isFinite(pages) || pages <= 0) {
+    return "n/a";
+  }
+  return formatNumber(pages);
+};
 
 const countBy = (items, key, fallback = "Unknown") => {
   const counts = new Map();
@@ -158,13 +195,20 @@ const buildDocumentCard = (item) => {
     item.summary ||
     "This entry is listed in the public catalog so reviewers can trace it back to the DOJ source.";
 
+  const fileType = formatExtension(item.extension);
+  const fileSize = formatBytes(item.size_bytes);
+  const pageCount = formatPageCount(item.page_count);
+
   const meta = document.createElement("div");
   meta.className = "meta";
   meta.innerHTML = `
     <span><strong>Dataset:</strong> ${item.dataset || "Unknown dataset"}</span>
-    <span><strong>Pages:</strong> ${formatNumber(item.page_count)}</span>
+    <span><strong>File type:</strong> ${fileType}</span>
+    <span><strong>File size:</strong> ${fileSize}</span>
+    <span><strong>Pages:</strong> ${pageCount}</span>
     <span><strong>Document type:</strong> ${item.doc_type_final || "Unknown"}</span>
     <span><strong>Content type:</strong> ${item.content_type || "Unknown"}</span>
+    <span><strong>Relative path:</strong> ${item.rel_path || "Unavailable"}</span>
   `;
 
   const hasValidLink = isValidUrl(item.doj_url);
@@ -190,18 +234,27 @@ const renderCatalog = (items) => {
   }
 
   const totalDocuments = items.length;
-  const totalPages = items.reduce((sum, item) => {
-    const pageCount = Number.parseInt(item.page_count, 10);
-    return sum + (Number.isFinite(pageCount) ? pageCount : 0);
+  const totalBytes = items.reduce((sum, item) => {
+    const sizeBytes = Number.parseFloat(item.size_bytes);
+    return sum + (Number.isFinite(sizeBytes) ? sizeBytes : 0);
   }, 0);
   const datasetCounts = countBy(items, "dataset");
-  const docTypeCounts = countBy(items, "doc_type_final");
-  const contentTypeCounts = countBy(items, "content_type");
+  const extensionCounts = countBy(items, "extension", "(none)");
+  const mimeCounts = countBy(items, "detected_mime");
   const validLinks = items.filter((item) => isValidUrl(item.doj_url)).length;
   const pendingLinks = totalDocuments - validLinks;
   const coveragePct = totalDocuments
     ? `${Math.round((validLinks / totalDocuments) * 100)}%`
     : "0%";
+  const textBasedDocs = items.filter((item) => item.classification === "Text-based");
+  const verifiedGood = textBasedDocs.filter((item) => item.text_quality_label === "GOOD");
+  const suspiciousText = textBasedDocs.filter((item) =>
+    ["EMPTY", "LOW"].includes(item.text_quality_label)
+  );
+  const textBasedShare = formatPct(textBasedDocs.length, totalDocuments);
+  const verifiedShare = formatPct(verifiedGood.length, textBasedDocs.length);
+  const suspiciousShare = formatPct(suspiciousText.length, textBasedDocs.length);
+  const hasTextSignals = items.some((item) => item.classification || item.text_quality_label);
 
   const grid = document.createElement("div");
   grid.className = "breakdown-grid";
@@ -213,7 +266,7 @@ const renderCatalog = (items) => {
         "Quick totals that explain the overall size of the public catalog without opening any files.",
       metrics: [
         { label: "Total documents", value: formatNumber(totalDocuments) },
-        { label: "Total pages", value: formatNumber(totalPages) },
+        { label: "Total size", value: formatBytes(totalBytes) },
         { label: "Datasets represented", value: formatNumber(datasetCounts.length) },
       ],
     }),
@@ -233,30 +286,64 @@ const renderCatalog = (items) => {
     buildBreakdownCard({
       title: "Files by type",
       description:
-        "Shows every document and content type so the public catalog documents all released formats.",
+        "Shows the mix of file extensions and detected MIME types so reviewers can spot non-PDF formats.",
       list: [
-        ...docTypeCounts.map((item) => ({
-          label: `Document type: ${item.label}`,
+        ...extensionCounts.map((item) => ({
+          label: `Extension: ${formatExtension(item.label)}`,
           count: item.count,
         })),
-        ...contentTypeCounts.map((item) => ({
-          label: `Content type: ${item.label}`,
+        ...mimeCounts.map((item) => ({
+          label: `MIME type: ${item.label}`,
           count: item.count,
         })),
       ],
       charts: [
         buildChartSection({
-          title: "Document types",
-          items: docTypeCounts,
+          title: "File extensions",
+          items: extensionCounts.slice(0, 12),
           total: totalDocuments,
         }),
         buildChartSection({
-          title: "Content types",
-          items: contentTypeCounts,
+          title: "Detected MIME types",
+          items: mimeCounts.slice(0, 12),
           total: totalDocuments,
         }),
       ],
     }),
+    ...(hasTextSignals
+      ? [
+          buildBreakdownCard({
+            title: "Text-based PDF readiness",
+            description:
+              "Highlights which PDFs are truly text-ready, using probe and text scan signals when available.",
+            metrics: [
+              {
+                label: "Text-based PDFs",
+                value: `${formatNumber(textBasedDocs.length)} (${textBasedShare})`,
+              },
+              {
+                label: "Verified good text (GOOD)",
+                value: `${formatNumber(verifiedGood.length)} (${verifiedShare})`,
+              },
+              {
+                label: "Suspicious text (EMPTY/LOW)",
+                value: `${formatNumber(suspiciousText.length)} (${suspiciousShare})`,
+              },
+            ],
+            charts: [
+              buildChartSection({
+                title: "PDF text readiness",
+                items: [
+                  { label: "Text-based PDFs", count: textBasedDocs.length },
+                  { label: "Verified GOOD text", count: verifiedGood.length },
+                  { label: "Suspicious text", count: suspiciousText.length },
+                ],
+                total: totalDocuments,
+              }),
+            ],
+          }),
+        ]
+      : []),
     buildBreakdownCard({
       title: "Source link readiness",
       description:
@@ -283,11 +370,11 @@ const renderCatalog = (items) => {
   documentSection.className = "document-section";
 
   const documentHeading = document.createElement("h3");
-  documentHeading.textContent = "Document catalog (all published items)";
+  documentHeading.textContent = "Document catalog (all published files)";
 
   const documentIntro = document.createElement("p");
   documentIntro.textContent =
-    "Every entry below is part of the public index, with plain-language context so non-technical reviewers can confirm what each document is and whether the DOJ source link is ready.";
+    "Every entry below is part of the public index, with plain-language context so non-technical reviewers can confirm what each file is and whether the DOJ source link is ready.";
 
   const documentGrid = document.createElement("div");
   documentGrid.className = "document-grid";

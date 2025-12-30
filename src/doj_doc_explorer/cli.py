@@ -12,6 +12,7 @@ import pandas as pd
 from .config import DEFAULT_OUTPUT_ROOT, InventoryConfig, ProbePaths, ProbeRunConfig
 from .inventory.runner import InventoryRunner
 from .probe.runner import run_probe_and_save
+from .public_index.runner import build_public_index_payload, write_public_index
 from .text_scan.config import TextQualityConfig, TextScanRunConfig
 from .text_scan.runner import run_text_scan_and_save
 from .name_index.config import NameIndexRunConfig
@@ -193,6 +194,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="Fail-safe cap on unique names per document",
     )
     name_index_run.set_defaults(func=run_name_index_cmd)
+
+    public_index = subparsers.add_parser("public_index", help="Public catalog export")
+    public_index_sub = public_index.add_subparsers(dest="subcommand")
+    public_index_run = public_index_sub.add_parser("run", help="Build public catalog JSON for GitHub Pages")
+    public_index_run.add_argument("--inventory", default="LATEST", help="Inventory path or run id or LATEST")
+    public_index_run.add_argument(
+        "--probe",
+        default="LATEST",
+        help="Probe run id, path, LATEST, or NONE to skip probe enrichment",
+    )
+    public_index_run.add_argument("--out", default=str(DEFAULT_OUTPUT_ROOT), help="Outputs root")
+    public_index_run.add_argument(
+        "--dest",
+        default="docs/data/public_index.json",
+        help="Destination JSON path for the public catalog export",
+    )
+    public_index_run.set_defaults(func=run_public_index_cmd)
 
     qa = subparsers.add_parser("qa", help="QA helpers")
     qa_sub = qa.add_subparsers(dest="subcommand")
@@ -397,6 +415,30 @@ def run_name_index_cmd(args: argparse.Namespace) -> None:
     print("Name index complete")
     print(f"Run dir  : {run_dir}")
     print(f"Summary  : {run_dir / 'name_index_summary.json'}")
+
+
+def run_public_index_cmd(args: argparse.Namespace) -> None:
+    outputs_root = Path(args.out)
+    inventory_path = resolve_inventory_path(args.inventory, outputs_root)
+
+    probe_run_id: str | None = None
+    if args.probe and args.probe.upper() != "NONE":
+        if args.probe == "LATEST":
+            probe_run_id = None
+        else:
+            probe_run_dir = resolve_probe_run_dir(args.probe, outputs_root)
+            probe_run_id = probe_run_dir.name
+
+    payload = build_public_index_payload(
+        inventory_path=inventory_path,
+        outputs_root=outputs_root,
+        probe_run_id=probe_run_id,
+    )
+    output_path = Path(args.dest)
+    write_public_index(payload, output_path)
+    print("Public catalog export complete")
+    print(f"Output  : {output_path}")
+    print(f"Items   : {payload.get('meta', {}).get('item_count', 0)}")
 
 
 def run_pdf_type_label_cmd(args: argparse.Namespace) -> None:
