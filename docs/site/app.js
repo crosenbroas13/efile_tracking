@@ -1,23 +1,43 @@
 const catalogContent = document.getElementById("catalog-content");
 const statusLine = document.getElementById("status");
+const runSummaryStatus = document.getElementById("run-summary-status");
+const runSummaryMetrics = document.getElementById("run-summary-metrics");
 
 let catalogItems = [];
 
 const showLoading = () => {
   statusLine.textContent = "Loading…";
   catalogContent.innerHTML = "<div class=\"loading\">Loading…</div>";
+  if (runSummaryStatus) {
+    runSummaryStatus.textContent = "Loading run details…";
+  }
+  if (runSummaryMetrics) {
+    runSummaryMetrics.innerHTML = "";
+  }
 };
 
 const showError = () => {
   statusLine.textContent = "Catalog unavailable";
   catalogContent.innerHTML =
     "<div class=\"error\">The catalog is not yet published. Please check back soon.</div>";
+  if (runSummaryStatus) {
+    runSummaryStatus.textContent = "Latest inventory and probe details unavailable.";
+  }
+  if (runSummaryMetrics) {
+    runSummaryMetrics.innerHTML = "";
+  }
 };
 
 const showPlaceholder = () => {
   statusLine.textContent = "No published documents yet";
   catalogContent.innerHTML =
     "<div class=\"placeholder\">No catalog data is available yet. Check back after the next publish cycle.</div>";
+  if (runSummaryStatus) {
+    runSummaryStatus.textContent = "Latest inventory and probe details unavailable.";
+  }
+  if (runSummaryMetrics) {
+    runSummaryMetrics.innerHTML = "";
+  }
 };
 
 const updateStatus = (totalCount) => {
@@ -100,6 +120,91 @@ const buildMetricList = (metrics) => {
     list.appendChild(item);
   });
   return list;
+};
+
+const renderRunSummary = (meta = {}) => {
+  if (!runSummaryStatus || !runSummaryMetrics) {
+    return;
+  }
+
+  const inventoryMeta = meta.inventory || {};
+  const probeMeta = meta.probe || {};
+  const inventoryTotals = inventoryMeta.totals || {};
+  const probeTotals = probeMeta.totals || {};
+  const probeText = probeMeta.text || {};
+
+  const metrics = [];
+  const inventoryRunId = inventoryMeta.run_id || meta.inventory_run_id;
+  const probeRunId = probeMeta.run_id || meta.probe_run_id;
+
+  if (inventoryRunId) {
+    metrics.push({ label: "Latest inventory run", value: inventoryRunId });
+  }
+  if (Number.isFinite(Number(inventoryTotals.files))) {
+    metrics.push({
+      label: "Inventory files",
+      value: formatNumber(inventoryTotals.files),
+    });
+  }
+  if (Number.isFinite(Number(inventoryTotals.total_bytes))) {
+    metrics.push({
+      label: "Inventory size",
+      value: formatBytes(inventoryTotals.total_bytes),
+    });
+  }
+  if (Number.isFinite(Number(inventoryMeta.folder_count))) {
+    metrics.push({
+      label: "VOL folders",
+      value: formatNumber(inventoryMeta.folder_count),
+    });
+  }
+
+  if (probeRunId) {
+    metrics.push({ label: "Latest probe run", value: probeRunId });
+  }
+  if (Number.isFinite(Number(probeTotals.pdfs))) {
+    metrics.push({
+      label: "PDFs probed",
+      value: formatNumber(probeTotals.pdfs),
+    });
+  }
+  if (Number.isFinite(Number(probeTotals.pages))) {
+    metrics.push({
+      label: "Pages analyzed",
+      value: formatNumber(probeTotals.pages),
+    });
+  }
+  if (Number.isFinite(Number(probeText.pages_with_text))) {
+    metrics.push({
+      label: "Pages with text",
+      value: formatNumber(probeText.pages_with_text),
+    });
+  }
+  if (Number.isFinite(Number(probeText.pages_without_text))) {
+    metrics.push({
+      label: "Pages without text",
+      value: formatNumber(probeText.pages_without_text),
+    });
+  }
+
+  if (meta.last_updated) {
+    metrics.push({ label: "Catalog updated", value: meta.last_updated });
+  }
+  const sourceRoot = inventoryMeta.source_root_name || meta.source_root_name;
+  if (sourceRoot) {
+    metrics.push({ label: "Source root", value: sourceRoot });
+  }
+
+  runSummaryMetrics.innerHTML = "";
+
+  if (metrics.length === 0) {
+    runSummaryStatus.textContent = "Latest inventory and probe details are not yet published.";
+    return;
+  }
+
+  runSummaryStatus.textContent =
+    "Showing totals from the latest full inventory and probe runs.";
+  runSummaryMetrics.appendChild(buildMetricList(metrics));
 };
 
 const buildCountList = (items) => {
@@ -408,6 +513,7 @@ const loadCatalog = async () => {
     // - Additional pages (about, methodology)
 
     updateStatus(catalogItems.length);
+    renderRunSummary(data.meta || {});
     renderCatalog(catalogItems);
   } catch (error) {
     showError();

@@ -174,6 +174,7 @@ python -m doj_doc_explorer.cli public_index run --inventory LATEST --probe LATES
 
 ### Output
 - `docs/data/public_index.json` — the public-safe catalog consumed by the GitHub Pages homepage.
+- **Homepage run visibility (plain language)**: the homepage now highlights the **latest full inventory and probe run IDs** plus the **total files, bytes, and PDFs analyzed**. This lets non-technical reviewers confirm the catalog reflects the **entire latest DOJ drop**, not a partial or outdated export.
 
 ## PDF type labeling (rerun-safe)
 Use this workflow when you need a human-reviewed PDF type label that stays valid even if you rerun inventory or probe jobs later.

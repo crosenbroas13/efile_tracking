@@ -111,11 +111,27 @@ def build_public_index_payload(
     inventory_df = load_inventory_df(inventory_path)
     inventory_summary = read_json(inventory_path.with_name("inventory_summary.json"))
     source_root_name = inventory_summary.get("source_root_name")
+    inventory_totals = inventory_summary.get("totals", {}) if inventory_summary else {}
+    folder_count = len(inventory_summary.get("folders", {})) if inventory_summary else None
 
     resolved_probe_id = probe_run_id or _resolve_latest_probe_id(outputs_root)
     probe_docs = _load_probe_docs(outputs_root, resolved_probe_id) if resolved_probe_id else pd.DataFrame()
     probe_docs, text_scan_run_id = _merge_text_scan_if_available(probe_docs, outputs_root, resolved_probe_id)
     probe_lookup = _build_probe_lookup(probe_docs)
+    probe_summary = (
+        read_json(outputs_root / "probes" / resolved_probe_id / "probe_summary.json") if resolved_probe_id else {}
+    )
+    probe_totals = {}
+    probe_text = {}
+    if probe_summary:
+        probe_totals = {
+            "pdfs": probe_summary.get("total_pdfs"),
+            "pages": probe_summary.get("total_pages"),
+        }
+        probe_text = {
+            "pages_with_text": probe_summary.get("pages_with_text"),
+            "pages_without_text": probe_summary.get("pages_without_text"),
+        }
 
     items: List[Dict[str, Any]] = []
     for _, row in inventory_df.iterrows():
@@ -169,6 +185,17 @@ def build_public_index_payload(
         "probe_run_id": resolved_probe_id,
         "text_scan_run_id": text_scan_run_id,
         "source_root_name": source_root_name,
+        "inventory": {
+            "run_id": inventory_path.parent.name,
+            "source_root_name": source_root_name,
+            "totals": inventory_totals,
+            "folder_count": folder_count,
+        },
+        "probe": {
+            "run_id": resolved_probe_id,
+            "totals": probe_totals,
+            "text": probe_text,
+        },
     }
     return {"meta": meta, "items": items}
 
