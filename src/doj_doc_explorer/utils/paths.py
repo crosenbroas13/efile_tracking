@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+import re
+
+
+_VOLUME_FOLDER_RE = re.compile(r"^VOL\d{5}$", re.IGNORECASE)
+
 
 def normalize_rel_path(path: str) -> str:
     if path is None:
@@ -23,5 +28,20 @@ def _normalize_segment(value: str) -> str:
     parts = [part for part in cleaned.split("/") if part not in ("", ".")]
     return "/".join(parts)
 
+def top_level_folder_from_rel_path(rel_path: str) -> str:
+    if not rel_path:
+        return ""
+    normalized = normalize_rel_path(rel_path)
+    prefix = normalized.split("::", 1)[0]
+    parts = [part for part in prefix.split("/") if part]
+    for part in parts:
+        if _VOLUME_FOLDER_RE.match(part):
+            dataset_num = part[3:]
+            try:
+                return f"DataSet {int(dataset_num)}"
+            except ValueError:
+                return part
+    return parts[0] if parts else ""
 
-__all__ = ["normalize_rel_path"]
+
+__all__ = ["normalize_rel_path", "top_level_folder_from_rel_path"]

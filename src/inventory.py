@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from .config import InventoryConfig, should_ignore
+from .doj_doc_explorer.utils.paths import top_level_folder_from_rel_path
 
 CHUNK_SIZE = 1024 * 1024
 
@@ -72,8 +73,7 @@ def compute_hashes(path: Path, algorithm: str, sample_bytes: int = 0) -> Tuple[s
 
 
 def _top_level_folder(rel_path: Path) -> str:
-    parts = rel_path.parts
-    return parts[0] if parts else ""
+    return top_level_folder_from_rel_path(rel_path.as_posix())
 
 
 def scan_inventory(config: InventoryConfig) -> Tuple[List[FileRecord], List[Dict[str, str]]]:
