@@ -175,7 +175,9 @@ const renderInventorySummary = (meta = {}, items = []) => {
     return;
   }
 
-  runSummaryStatus.textContent = "Showing totals from the latest full inventory run.";
+  runSummaryStatus.textContent = hasItems
+    ? "Showing totals from the latest full inventory run."
+    : "Showing totals from the latest inventory summary.";
   runSummaryMetrics.appendChild(buildMetricList(metrics));
 };
 
@@ -253,7 +255,9 @@ const loadCatalog = async () => {
 
       if (summaryResponse.ok) {
         const summaryData = await summaryResponse.json();
-        renderInventorySummary(summaryData.meta || {}, []);
+        const summaryMeta = summaryData.meta || {};
+        updateCatalogTitles(summaryMeta);
+        renderInventorySummary(summaryMeta, []);
       }
     } catch (summaryError) {
       // Summary is optional; fall back to full catalog fetch.
