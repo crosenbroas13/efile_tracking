@@ -60,22 +60,18 @@
 
       <section class="catalog" aria-labelledby="catalog">
         <div class="catalog-header">
-          <h2 id="catalog">Catalog</h2>
+          <h2 id="catalog">Catalog breakdown</h2>
           <p class="catalog-intro">
-            Use search to browse documents by title or summary. Click any result
-            to view the original source on justice.gov.
+            A high-level snapshot of the catalog, organized like the Streamlit
+            executive summary. Use it to understand the overall mix of
+            documents, datasets, and link readiness without digging into
+            individual files.
           </p>
         </div>
 
-        <div class="catalog-controls">
-          <label for="search" class="visually-hidden">Search</label>
-          <input
-            id="search"
-            type="search"
-            placeholder="Search by title or summary"
-            autocomplete="off"
-          />
+        <div class="catalog-controls catalog-controls--compact">
           <p id="status" class="status">Loading…</p>
+          <a class="btn-secondary" href="name-search.html">Open name search</a>
         </div>
 
         <div id="catalog-content" class="catalog-content" aria-live="polite">

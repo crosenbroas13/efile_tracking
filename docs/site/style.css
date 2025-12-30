@@ -129,6 +129,13 @@ body {
   margin-bottom: 20px;
 }
 
+.catalog-controls--compact {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
 .search-controls {
   align-items: stretch;
 }
@@ -167,9 +174,69 @@ body {
 }
 
 .catalog-content {
+  display: block;
+}
+
+.breakdown-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 18px;
+}
+
+.breakdown-card {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.breakdown-card h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.breakdown-card p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.breakdown-metrics {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.breakdown-metrics div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.breakdown-metrics dt {
+  font-weight: 600;
+}
+
+.breakdown-metrics dd {
+  margin: 0;
+  color: var(--muted);
+}
+
+.breakdown-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.breakdown-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.95rem;
 }
 
 .card {
