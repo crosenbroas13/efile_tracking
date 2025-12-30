@@ -126,7 +126,7 @@ const renderResults = (matches, query) => {
     const thead = document.createElement("thead");
     thead.innerHTML = `
       <tr>
-        <th scope="col">Dataset</th>
+        <th scope="col">VOL folder</th>
         <th scope="col">Document</th>
         <th scope="col">Pages</th>
         <th scope="col">Total mentions</th>

@@ -202,7 +202,7 @@ const buildDocumentCard = (item) => {
   const meta = document.createElement("div");
   meta.className = "meta";
   meta.innerHTML = `
-    <span><strong>Dataset:</strong> ${item.dataset || "Unknown dataset"}</span>
+    <span><strong>VOL folder:</strong> ${item.dataset || "Unknown VOL"}</span>
     <span><strong>File type:</strong> ${fileType}</span>
     <span><strong>File size:</strong> ${fileSize}</span>
     <span><strong>Pages:</strong> ${pageCount}</span>
@@ -267,17 +267,17 @@ const renderCatalog = (items) => {
       metrics: [
         { label: "Total documents", value: formatNumber(totalDocuments) },
         { label: "Total size", value: formatBytes(totalBytes) },
-        { label: "Datasets represented", value: formatNumber(datasetCounts.length) },
+        { label: "VOL folders represented", value: formatNumber(datasetCounts.length) },
       ],
     }),
     buildBreakdownCard({
-      title: "Dataset structure",
+      title: "VOL folder structure",
       description:
-        "Highlights every dataset represented in the catalog so reviewers can confirm nothing is missing.",
+        "Highlights every VOL folder represented in the catalog so reviewers can confirm nothing is missing.",
       list: datasetCounts,
       charts: [
         buildChartSection({
-          title: "Documents by dataset",
+          title: "Documents by VOL folder",
           items: datasetCounts,
           total: totalDocuments,
         }),

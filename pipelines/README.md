@@ -4,7 +4,7 @@ This folder groups **all ingestion and processing steps** into one place so the 
 Start with the **base pipeline** (inventory + probe), then branch into the specialized pipelines.
 
 ## How the pipelines fit together
-1. **Base pipeline**: the shared starting point for all datasets.
+1. **Base pipeline**: the shared starting point for all DOJ pull folders.
 2. **PDF pipeline**: PDF-specific follow-on steps such as labeling, doc-type modeling, and text scan review.
 3. **Audio pipeline**: local-only transcription + diarization inventory for audio/video files.
 4. **Other pipeline**: reserved for future non-PDF, non-audio workflows.

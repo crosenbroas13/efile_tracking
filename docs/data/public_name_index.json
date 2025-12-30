@@ -8,27 +8,43 @@
     {
       "canonical_key": "smith|john",
       "display_name": "John Smith",
-      "variants": ["john smith", "smith john", "smith, john"],
+      "variants": [
+        "john smith",
+        "smith john",
+        "smith, john"
+      ],
       "docs": [
         {
           "doc_id": "EFTA00000018",
           "title": "EFTA00000018.pdf",
-          "dataset": "DataSet 1",
-          "doj_url": "https://www.justice.gov/epstein/files/DataSet%201/EFTA00000018.pdf",
+          "dataset": "VOL00001",
+          "doj_url": "https://www.justice.gov/epstein/files/VOL00001/EFTA00000018.pdf",
           "hits": [
-            { "page": 2, "count": 1 },
-            { "page": 7, "count": 3 }
+            {
+              "page": 2,
+              "count": 1
+            },
+            {
+              "page": 7,
+              "count": 3
+            }
           ],
           "total_count": 4
         },
         {
           "doc_id": "EFTA00000112",
           "title": "EFTA00000112.pdf",
-          "dataset": "DataSet 1",
-          "doj_url": "https://www.justice.gov/epstein/files/DataSet%201/EFTA00000112.pdf",
+          "dataset": "VOL00001",
+          "doj_url": "https://www.justice.gov/epstein/files/VOL00001/EFTA00000112.pdf",
           "hits": [
-            { "page": 4, "count": 2 },
-            { "page": 9, "count": 1 }
+            {
+              "page": 4,
+              "count": 2
+            },
+            {
+              "page": 9,
+              "count": 1
+            }
           ],
           "total_count": 3
         }
@@ -37,17 +53,30 @@
     {
       "canonical_key": "garcia|maria",
       "display_name": "Maria Garcia",
-      "variants": ["maria garcia", "garcia maria", "garcia, maria"],
+      "variants": [
+        "maria garcia",
+        "garcia maria",
+        "garcia, maria"
+      ],
       "docs": [
         {
           "doc_id": "EFTA00010205",
           "title": "EFTA00010205.pdf",
-          "dataset": "DataSet 2",
-          "doj_url": "https://www.justice.gov/epstein/files/DataSet%202/EFTA00010205.pdf",
+          "dataset": "VOL00002",
+          "doj_url": "https://www.justice.gov/epstein/files/VOL00002/EFTA00010205.pdf",
           "hits": [
-            { "page": 1, "count": 1 },
-            { "page": 3, "count": 2 },
-            { "page": 10, "count": 1 }
+            {
+              "page": 1,
+              "count": 1
+            },
+            {
+              "page": 3,
+              "count": 2
+            },
+            {
+              "page": 10,
+              "count": 1
+            }
           ],
           "total_count": 4
         }
@@ -56,26 +85,39 @@
     {
       "canonical_key": "johnson|carl",
       "display_name": "Carl Johnson",
-      "variants": ["carl johnson", "johnson carl", "johnson, carl"],
+      "variants": [
+        "carl johnson",
+        "johnson carl",
+        "johnson, carl"
+      ],
       "docs": [
         {
           "doc_id": "EFTA00021540",
           "title": "EFTA00021540.pdf",
-          "dataset": "DataSet 3",
-          "doj_url": "https://www.justice.gov/epstein/files/DataSet%203/EFTA00021540.pdf",
+          "dataset": "VOL00003",
+          "doj_url": "https://www.justice.gov/epstein/files/VOL00003/EFTA00021540.pdf",
           "hits": [
-            { "page": 6, "count": 1 },
-            { "page": 8, "count": 1 }
+            {
+              "page": 6,
+              "count": 1
+            },
+            {
+              "page": 8,
+              "count": 1
+            }
           ],
           "total_count": 2
         },
         {
           "doc_id": "EFTA00021541",
           "title": "EFTA00021541.pdf",
-          "dataset": "DataSet 3",
-          "doj_url": "https://www.justice.gov/epstein/files/DataSet%203/EFTA00021541.pdf",
+          "dataset": "VOL00003",
+          "doj_url": "https://www.justice.gov/epstein/files/VOL00003/EFTA00021541.pdf",
           "hits": [
-            { "page": 2, "count": 2 }
+            {
+              "page": 2,
+              "count": 2
+            }
           ],
           "total_count": 2
         }
@@ -84,17 +126,30 @@
     {
       "canonical_key": "lee|sandra",
       "display_name": "Sandra Lee",
-      "variants": ["sandra lee", "lee sandra", "lee, sandra"],
+      "variants": [
+        "sandra lee",
+        "lee sandra",
+        "lee, sandra"
+      ],
       "docs": [
         {
           "doc_id": "EFTA00032018",
           "title": "EFTA00032018.pdf",
-          "dataset": "DataSet 4",
-          "doj_url": "https://www.justice.gov/epstein/files/DataSet%204/EFTA00032018.pdf",
+          "dataset": "VOL00004",
+          "doj_url": "https://www.justice.gov/epstein/files/VOL00004/EFTA00032018.pdf",
           "hits": [
-            { "page": 5, "count": 1 },
-            { "page": 12, "count": 2 },
-            { "page": 14, "count": 1 }
+            {
+              "page": 5,
+              "count": 1
+            },
+            {
+              "page": 12,
+              "count": 2
+            },
+            {
+              "page": 14,
+              "count": 1
+            }
           ],
           "total_count": 4
         }
@@ -103,37 +158,56 @@
     {
       "canonical_key": "nguyen|alex",
       "display_name": "Alex Nguyen",
-      "variants": ["alex nguyen", "nguyen alex", "nguyen, alex"],
+      "variants": [
+        "alex nguyen",
+        "nguyen alex",
+        "nguyen, alex"
+      ],
       "docs": [
         {
           "doc_id": "EFTA00051209",
           "title": "EFTA00051209.pdf",
-          "dataset": "DataSet 5",
-          "doj_url": "https://www.justice.gov/epstein/files/DataSet%205/EFTA00051209.pdf",
+          "dataset": "VOL00005",
+          "doj_url": "https://www.justice.gov/epstein/files/VOL00005/EFTA00051209.pdf",
           "hits": [
-            { "page": 3, "count": 1 },
-            { "page": 11, "count": 1 }
+            {
+              "page": 3,
+              "count": 1
+            },
+            {
+              "page": 11,
+              "count": 1
+            }
           ],
           "total_count": 2
         },
         {
           "doc_id": "EFTA00051233",
           "title": "EFTA00051233.pdf",
-          "dataset": "DataSet 5",
-          "doj_url": "https://www.justice.gov/epstein/files/DataSet%205/EFTA00051233.pdf",
+          "dataset": "VOL00005",
+          "doj_url": "https://www.justice.gov/epstein/files/VOL00005/EFTA00051233.pdf",
           "hits": [
-            { "page": 1, "count": 1 },
-            { "page": 6, "count": 1 }
+            {
+              "page": 1,
+              "count": 1
+            },
+            {
+              "page": 6,
+              "count": 1
+            }
           ],
           "total_count": 2
         },
         {
           "doc_id": "EFTA00051248",
           "title": "EFTA00051248.pdf",
-          "dataset": "DataSet 5",
-          "doj_url": "https://www.justice.gov/epstein/files/DataSet%205/EFTA00051248.pdf",
+          "dataset": "VOL00005",
+          "doj_url": "https://www.justice.gov/epstein/files/VOL00005/EFTA00051248.pdf",
           "hits": [
-            { "page": 9, "count": 3 }
+            {
+              "page": 9,
+              "count": 3
+            }
           ],
           "total_count": 3
         }
@@ -142,27 +216,43 @@
     {
       "canonical_key": "patel|ravi",
       "display_name": "Ravi Patel",
-      "variants": ["ravi patel", "patel ravi", "patel, ravi"],
+      "variants": [
+        "ravi patel",
+        "patel ravi",
+        "patel, ravi"
+      ],
       "docs": [
         {
           "doc_id": "EFTA00060111",
           "title": "EFTA00060111.pdf",
-          "dataset": "DataSet 6",
-          "doj_url": "https://www.justice.gov/epstein/files/DataSet%206/EFTA00060111.pdf",
+          "dataset": "VOL00006",
+          "doj_url": "https://www.justice.gov/epstein/files/VOL00006/EFTA00060111.pdf",
           "hits": [
-            { "page": 2, "count": 1 },
-            { "page": 5, "count": 2 },
-            { "page": 18, "count": 1 }
+            {
+              "page": 2,
+              "count": 1
+            },
+            {
+              "page": 5,
+              "count": 2
+            },
+            {
+              "page": 18,
+              "count": 1
+            }
           ],
           "total_count": 4
         },
         {
           "doc_id": "EFTA00060129",
           "title": "EFTA00060129.pdf",
-          "dataset": "DataSet 6",
-          "doj_url": "https://www.justice.gov/epstein/files/DataSet%206/EFTA00060129.pdf",
+          "dataset": "VOL00006",
+          "doj_url": "https://www.justice.gov/epstein/files/VOL00006/EFTA00060129.pdf",
           "hits": [
-            { "page": 7, "count": 2 }
+            {
+              "page": 7,
+              "count": 2
+            }
           ],
           "total_count": 2
         }
