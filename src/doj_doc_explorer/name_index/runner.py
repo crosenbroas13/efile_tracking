@@ -55,19 +55,27 @@ def run_name_index(
     text_scan_summary = read_json(config.text_scan_run_dir / "text_scan_summary.json")
     text_scan_probe_id = text_scan_summary.get("probe_run_id")
     probe_run_id = config.probe_run_dir.name
+    meta_warning: Dict[str, object] = {}
     if text_scan_probe_id and text_scan_probe_id != probe_run_id:
-        meta_warning = {
-            "warning": "text_scan_probe_mismatch",
-            "text_scan_probe_run_id": text_scan_probe_id,
-            "probe_run_id": probe_run_id,
-        }
-    else:
-        meta_warning = {}
+        meta_warning.update(
+            {
+                "warning": "text_scan_probe_mismatch",
+                "text_scan_probe_run_id": text_scan_probe_id,
+                "probe_run_id": probe_run_id,
+            }
+        )
 
     pdfs_df, _, _ = list_pdfs(config.inventory_path, extract_root=config.outputs_root)
     pdfs_df["rel_path"] = pdfs_df["rel_path"].astype(str).map(normalize_rel_path)
     probe_docs["rel_path"] = probe_docs["rel_path"].astype(str).map(normalize_rel_path)
     text_scan_df["rel_path"] = text_scan_df["rel_path"].astype(str).map(normalize_rel_path)
+
+    has_text_quality_label = "text_quality_label" in text_scan_df.columns
+    if not has_text_quality_label:
+        text_scan_df["text_quality_label"] = "UNKNOWN"
+        meta_warning["text_quality_label_missing"] = True
+    if "content_type_pred" not in text_scan_df.columns:
+        text_scan_df["content_type_pred"] = None
 
     text_scan_df = text_scan_df.drop_duplicates(subset=["rel_path"])
     merged = probe_docs.merge(
@@ -82,7 +90,10 @@ def run_name_index(
         how="left",
     )
     if config.only_verified_good:
-        merged = merged[merged["text_quality_label"] == "GOOD"].copy()
+        if has_text_quality_label:
+            merged = merged[merged["text_quality_label"] == "GOOD"].copy()
+        else:
+            meta_warning["text_quality_label_filter_skipped"] = True
 
     if merged.empty:
         raise SystemExit("No verified GOOD text PDFs found; run text_scan first or adjust filters.")

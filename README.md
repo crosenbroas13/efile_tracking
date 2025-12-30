@@ -131,6 +131,10 @@ The **Name Mentions Index** builds a **public-safe, searchable map of person-nam
 This helps non-technical reviewers answer **“where does this name appear?”** without exposing
 document contents.
 
+**If you are using older Text Scan outputs that do not include a text-quality label**, the name index
+still runs but **skips the “GOOD text only” filter** and records a warning in the run summary. In plain
+terms, the index may include PDFs that *look* text-based but have not been verified for text quality.
+
 ### CLI command
 ```bash
 python -m doj_doc_explorer.cli name_index run --inventory LATEST --probe LATEST --text-scan LATEST --out ./outputs
