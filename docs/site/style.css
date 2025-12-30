@@ -239,6 +239,76 @@ body {
   font-size: 0.95rem;
 }
 
+.chart-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chart-section h4 {
+  margin: 6px 0 0;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.chart-list {
+  display: grid;
+  gap: 10px;
+}
+
+.chart-row {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(120px, 1fr);
+  align-items: center;
+}
+
+.chart-label {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.chart-bar-track {
+  background: #e2e8f0;
+  border-radius: 999px;
+  height: 8px;
+  overflow: hidden;
+}
+
+.chart-bar-fill {
+  display: block;
+  height: 100%;
+  background: #3b82f6;
+}
+
+.chart-value {
+  font-size: 0.85rem;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.document-section {
+  margin-top: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.document-section h3 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.document-section p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.document-grid {
+  display: grid;
+  gap: 20px;
+}
+
 .card {
   background: #f8fafc;
   border: 1px solid var(--border);
@@ -444,5 +514,13 @@ body {
 
   .search-controls {
     gap: 16px;
+  }
+
+  .chart-row {
+    grid-template-columns: minmax(160px, 1fr) minmax(140px, 2fr) minmax(80px, auto);
+  }
+
+  .document-grid {
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   }
 }

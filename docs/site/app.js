@@ -76,7 +76,50 @@ const buildCountList = (items) => {
   return list;
 };
 
-const buildBreakdownCard = ({ title, description, metrics, list }) => {
+const buildChartList = (items, total) => {
+  const chart = document.createElement("div");
+  chart.className = "chart-list";
+  items.forEach(({ label, count }) => {
+    const row = document.createElement("div");
+    row.className = "chart-row";
+
+    const labelEl = document.createElement("span");
+    labelEl.className = "chart-label";
+    labelEl.textContent = label;
+
+    const barTrack = document.createElement("span");
+    barTrack.className = "chart-bar-track";
+
+    const barFill = document.createElement("span");
+    barFill.className = "chart-bar-fill";
+    const ratio = total ? count / total : 0;
+    barFill.style.width = `${Math.max(ratio * 100, 1)}%`;
+
+    barTrack.appendChild(barFill);
+
+    const valueEl = document.createElement("span");
+    valueEl.className = "chart-value";
+    valueEl.textContent = `${formatNumber(count)} (${Math.round(ratio * 100)}%)`;
+
+    row.append(labelEl, barTrack, valueEl);
+    chart.appendChild(row);
+  });
+  return chart;
+};
+
+const buildChartSection = ({ title, items, total }) => {
+  const wrapper = document.createElement("div");
+  wrapper.className = "chart-section";
+
+  const heading = document.createElement("h4");
+  heading.textContent = title;
+  wrapper.appendChild(heading);
+
+  wrapper.appendChild(buildChartList(items, total));
+  return wrapper;
+};
+
+const buildBreakdownCard = ({ title, description, metrics, list, charts }) => {
   const card = document.createElement("article");
   card.className = "breakdown-card";
 
@@ -96,6 +139,45 @@ const buildBreakdownCard = ({ title, description, metrics, list }) => {
     card.appendChild(buildCountList(list));
   }
 
+  if (charts?.length) {
+    charts.forEach((chart) => card.appendChild(chart));
+  }
+
+  return card;
+};
+
+const buildDocumentCard = (item) => {
+  const card = document.createElement("article");
+  card.className = "card";
+
+  const title = document.createElement("h3");
+  title.textContent = item.title || "Untitled document";
+
+  const summary = document.createElement("p");
+  summary.textContent =
+    item.summary ||
+    "This entry is listed in the public catalog so reviewers can trace it back to the DOJ source.";
+
+  const meta = document.createElement("div");
+  meta.className = "meta";
+  meta.innerHTML = `
+    <span><strong>Dataset:</strong> ${item.dataset || "Unknown dataset"}</span>
+    <span><strong>Pages:</strong> ${formatNumber(item.page_count)}</span>
+    <span><strong>Document type:</strong> ${item.doc_type_final || "Unknown"}</span>
+    <span><strong>Content type:</strong> ${item.content_type || "Unknown"}</span>
+  `;
+
+  const hasValidLink = isValidUrl(item.doj_url);
+  const link = document.createElement(hasValidLink ? "a" : "span");
+  link.className = `card-link${hasValidLink ? "" : " card-link--disabled"}`;
+  link.textContent = hasValidLink ? "Open DOJ source" : "Source link pending";
+  if (hasValidLink) {
+    link.href = item.doj_url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+  }
+
+  card.append(title, summary, meta, link);
   return card;
 };
 
@@ -138,22 +220,41 @@ const renderCatalog = (items) => {
     buildBreakdownCard({
       title: "Dataset structure",
       description:
-        "Highlights which datasets contribute the most documents so non-technical reviewers can see where the volume sits.",
-      list: datasetCounts.slice(0, 5),
+        "Highlights every dataset represented in the catalog so reviewers can confirm nothing is missing.",
+      list: datasetCounts,
+      charts: [
+        buildChartSection({
+          title: "Documents by dataset",
+          items: datasetCounts,
+          total: totalDocuments,
+        }),
+      ],
     }),
     buildBreakdownCard({
       title: "Files by type",
       description:
-        "Shows the mix of document and content types to indicate what kinds of files dominate the catalog.",
+        "Shows every document and content type so the public catalog documents all released formats.",
       list: [
-        ...docTypeCounts.slice(0, 4).map((item) => ({
+        ...docTypeCounts.map((item) => ({
           label: `Document type: ${item.label}`,
           count: item.count,
         })),
-        ...contentTypeCounts.slice(0, 4).map((item) => ({
+        ...contentTypeCounts.map((item) => ({
           label: `Content type: ${item.label}`,
           count: item.count,
         })),
+      ],
+      charts: [
+        buildChartSection({
+          title: "Document types",
+          items: docTypeCounts,
+          total: totalDocuments,
+        }),
+        buildChartSection({
+          title: "Content types",
+          items: contentTypeCounts,
+          total: totalDocuments,
+        }),
       ],
     }),
     buildBreakdownCard({
@@ -165,10 +266,36 @@ const renderCatalog = (items) => {
         { label: "Links pending", value: formatNumber(pendingLinks) },
         { label: "Coverage", value: coveragePct },
       ],
+      charts: [
+        buildChartSection({
+          title: "Source link coverage",
+          items: [
+            { label: "Valid DOJ links", count: validLinks },
+            { label: "Links pending", count: pendingLinks },
+          ],
+          total: totalDocuments,
+        }),
+      ],
     })
   );
 
-  catalogContent.appendChild(grid);
+  const documentSection = document.createElement("section");
+  documentSection.className = "document-section";
+
+  const documentHeading = document.createElement("h3");
+  documentHeading.textContent = "Document catalog (all published items)";
+
+  const documentIntro = document.createElement("p");
+  documentIntro.textContent =
+    "Every entry below is part of the public index, with plain-language context so non-technical reviewers can confirm what each document is and whether the DOJ source link is ready.";
+
+  const documentGrid = document.createElement("div");
+  documentGrid.className = "document-grid";
+  items.forEach((item) => documentGrid.appendChild(buildDocumentCard(item)));
+
+  documentSection.append(documentHeading, documentIntro, documentGrid);
+
+  catalogContent.append(grid, documentSection);
 };
 
 const loadCatalog = async () => {
