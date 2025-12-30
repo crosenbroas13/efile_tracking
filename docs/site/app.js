@@ -1,6 +1,5 @@
 const catalogContent = document.getElementById("catalog-content");
 const statusLine = document.getElementById("status");
-const searchInput = document.getElementById("search");
 
 let catalogItems = [];
 
@@ -16,13 +15,13 @@ const showError = () => {
 };
 
 const showPlaceholder = () => {
-  statusLine.textContent = "Showing 0 of 0 documents";
+  statusLine.textContent = "No published documents yet";
   catalogContent.innerHTML =
-    "<div class=\"placeholder\">No documents match your search yet.</div>";
+    "<div class=\"placeholder\">No catalog data is available yet. Check back after the next publish cycle.</div>";
 };
 
-const updateStatus = (visibleCount, totalCount) => {
-  statusLine.textContent = `Showing ${visibleCount} of ${totalCount} documents`;
+const updateStatus = (totalCount) => {
+  statusLine.textContent = `Snapshot of ${totalCount} documents`;
 };
 
 const isValidUrl = (value) => {
@@ -38,41 +37,65 @@ const isValidUrl = (value) => {
   }
 };
 
-const buildCard = (item) => {
+const formatNumber = (value) => Number(value || 0).toLocaleString("en-US");
+
+const countBy = (items, key, fallback = "Unknown") => {
+  const counts = new Map();
+  items.forEach((item) => {
+    const label = item[key] ? String(item[key]) : fallback;
+    counts.set(label, (counts.get(label) || 0) + 1);
+  });
+  return Array.from(counts.entries())
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count);
+};
+
+const buildMetricList = (metrics) => {
+  const list = document.createElement("dl");
+  list.className = "breakdown-metrics";
+  metrics.forEach(({ label, value }) => {
+    const item = document.createElement("div");
+    const dt = document.createElement("dt");
+    dt.textContent = label;
+    const dd = document.createElement("dd");
+    dd.textContent = value;
+    item.append(dt, dd);
+    list.appendChild(item);
+  });
+  return list;
+};
+
+const buildCountList = (items) => {
+  const list = document.createElement("ul");
+  list.className = "breakdown-list";
+  items.forEach(({ label, count }) => {
+    const item = document.createElement("li");
+    item.innerHTML = `<span>${label}</span><strong>${formatNumber(count)}</strong>`;
+    list.appendChild(item);
+  });
+  return list;
+};
+
+const buildBreakdownCard = ({ title, description, metrics, list }) => {
   const card = document.createElement("article");
-  card.className = "card";
+  card.className = "breakdown-card";
 
-  const title = document.createElement("h3");
-  title.textContent = item.title;
+  const heading = document.createElement("h3");
+  heading.textContent = title;
 
-  const summary = document.createElement("p");
-  summary.textContent = item.summary;
+  const body = document.createElement("p");
+  body.textContent = description;
 
-  const meta = document.createElement("div");
-  meta.className = "meta";
-  meta.innerHTML = `
-    <span><strong>Document type:</strong> ${item.doc_type_final}</span>
-    <span><strong>Content type:</strong> ${item.content_type}</span>
-    <span><strong>Page count:</strong> ${item.page_count}</span>
-    <span><strong>Dataset:</strong> ${item.dataset}</span>
-  `;
+  card.append(heading, body);
 
-  const hasValidUrl = isValidUrl(item.doj_url);
-  const link = document.createElement(hasValidUrl ? "a" : "span");
-  link.className = "card-link";
-  link.textContent = hasValidUrl ? "View original on DOJ" : "Source link pending";
-
-  if (hasValidUrl) {
-    link.href = item.doj_url;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-  } else {
-    link.classList.add("card-link--disabled");
-    link.setAttribute("aria-disabled", "true");
-    link.title = "The DOJ source link is not yet available for this entry.";
+  if (metrics?.length) {
+    card.appendChild(buildMetricList(metrics));
   }
 
-  card.append(title, summary, meta, link);
+  if (list?.length) {
+    card.appendChild(buildCountList(list));
+  }
+
   return card;
 };
 
@@ -84,28 +107,68 @@ const renderCatalog = (items) => {
     return;
   }
 
-  const fragment = document.createDocumentFragment();
-  items.forEach((item) => fragment.appendChild(buildCard(item)));
-  catalogContent.appendChild(fragment);
-};
+  const totalDocuments = items.length;
+  const totalPages = items.reduce((sum, item) => {
+    const pageCount = Number.parseInt(item.page_count, 10);
+    return sum + (Number.isFinite(pageCount) ? pageCount : 0);
+  }, 0);
+  const datasetCounts = countBy(items, "dataset");
+  const docTypeCounts = countBy(items, "doc_type_final");
+  const contentTypeCounts = countBy(items, "content_type");
+  const validLinks = items.filter((item) => isValidUrl(item.doj_url)).length;
+  const pendingLinks = totalDocuments - validLinks;
+  const coveragePct = totalDocuments
+    ? `${Math.round((validLinks / totalDocuments) * 100)}%`
+    : "0%";
 
-const filterItems = (query) => {
-  const normalizedQuery = query.trim().toLowerCase();
-  if (!normalizedQuery) {
-    return catalogItems;
-  }
+  const grid = document.createElement("div");
+  grid.className = "breakdown-grid";
 
-  return catalogItems.filter((item) => {
-    const title = item.title.toLowerCase();
-    const summary = item.summary.toLowerCase();
-    return title.includes(normalizedQuery) || summary.includes(normalizedQuery);
-  });
-};
+  grid.append(
+    buildBreakdownCard({
+      title: "Executive summary",
+      description:
+        "Quick totals that explain the overall size of the public catalog without opening any files.",
+      metrics: [
+        { label: "Total documents", value: formatNumber(totalDocuments) },
+        { label: "Total pages", value: formatNumber(totalPages) },
+        { label: "Datasets represented", value: formatNumber(datasetCounts.length) },
+      ],
+    }),
+    buildBreakdownCard({
+      title: "Dataset structure",
+      description:
+        "Highlights which datasets contribute the most documents so non-technical reviewers can see where the volume sits.",
+      list: datasetCounts.slice(0, 5),
+    }),
+    buildBreakdownCard({
+      title: "Files by type",
+      description:
+        "Shows the mix of document and content types to indicate what kinds of files dominate the catalog.",
+      list: [
+        ...docTypeCounts.slice(0, 4).map((item) => ({
+          label: `Document type: ${item.label}`,
+          count: item.count,
+        })),
+        ...contentTypeCounts.slice(0, 4).map((item) => ({
+          label: `Content type: ${item.label}`,
+          count: item.count,
+        })),
+      ],
+    }),
+    buildBreakdownCard({
+      title: "Source link readiness",
+      description:
+        "Counts how many entries are ready to open on justice.gov versus still waiting on a source URL.",
+      metrics: [
+        { label: "Valid DOJ links", value: formatNumber(validLinks) },
+        { label: "Links pending", value: formatNumber(pendingLinks) },
+        { label: "Coverage", value: coveragePct },
+      ],
+    })
+  );
 
-const handleSearch = () => {
-  const filtered = filterItems(searchInput.value);
-  updateStatus(filtered.length, catalogItems.length);
-  renderCatalog(filtered);
+  catalogContent.appendChild(grid);
 };
 
 const loadCatalog = async () => {
@@ -130,13 +193,11 @@ const loadCatalog = async () => {
     // - Summary charts
     // - Additional pages (about, methodology)
 
-    updateStatus(catalogItems.length, catalogItems.length);
+    updateStatus(catalogItems.length);
     renderCatalog(catalogItems);
   } catch (error) {
     showError();
   }
 };
-
-searchInput.addEventListener("input", handleSearch);
 
 loadCatalog();
