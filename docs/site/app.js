@@ -1,15 +1,17 @@
 const catalogContent = document.getElementById("catalog-content");
-const statusLine = document.getElementById("status");
 const runSummaryStatus = document.getElementById("run-summary-status");
 const runSummaryMetrics = document.getElementById("run-summary-metrics");
+const catalogTitle = document.getElementById("catalog");
+const runSummaryTitle = document.getElementById("run-summary-title");
 
 let catalogItems = [];
 
 const showLoading = () => {
-  statusLine.textContent = "Loading…";
-  catalogContent.innerHTML = "<div class=\"loading\">Loading…</div>";
+  if (catalogContent) {
+    catalogContent.innerHTML = "<div class=\"loading\">Loading…</div>";
+  }
   if (runSummaryStatus) {
-    runSummaryStatus.textContent = "Loading run details…";
+    runSummaryStatus.textContent = "Loading inventory details…";
   }
   if (runSummaryMetrics) {
     runSummaryMetrics.innerHTML = "";
@@ -17,11 +19,12 @@ const showLoading = () => {
 };
 
 const showError = () => {
-  statusLine.textContent = "Catalog unavailable";
-  catalogContent.innerHTML =
-    "<div class=\"error\">The catalog is not yet published. Please check back soon.</div>";
+  if (catalogContent) {
+    catalogContent.innerHTML =
+      "<div class=\"error\">The catalog is not yet published. Please check back soon.</div>";
+  }
   if (runSummaryStatus) {
-    runSummaryStatus.textContent = "Latest inventory and probe details unavailable.";
+    runSummaryStatus.textContent = "Latest inventory details unavailable.";
   }
   if (runSummaryMetrics) {
     runSummaryMetrics.innerHTML = "";
@@ -29,41 +32,19 @@ const showError = () => {
 };
 
 const showPlaceholder = () => {
-  statusLine.textContent = "No published documents yet";
-  catalogContent.innerHTML =
-    "<div class=\"placeholder\">No catalog data is available yet. Check back after the next publish cycle.</div>";
+  if (catalogContent) {
+    catalogContent.innerHTML =
+      "<div class=\"placeholder\">No catalog data is available yet. Check back after the next publish cycle.</div>";
+  }
   if (runSummaryStatus) {
-    runSummaryStatus.textContent = "Latest inventory and probe details unavailable.";
+    runSummaryStatus.textContent = "Latest inventory details unavailable.";
   }
   if (runSummaryMetrics) {
     runSummaryMetrics.innerHTML = "";
   }
 };
 
-const updateStatus = (totalCount) => {
-  statusLine.textContent = `Snapshot of ${totalCount} documents`;
-};
-
-const isValidUrl = (value) => {
-  if (!value) {
-    return false;
-  }
-
-  try {
-    const parsed = new URL(value);
-    return parsed.protocol === "http:" || parsed.protocol === "https:";
-  } catch (error) {
-    return false;
-  }
-};
-
 const formatNumber = (value) => Number(value || 0).toLocaleString("en-US");
-const formatPct = (numerator, denominator) => {
-  if (!denominator || denominator <= 0) {
-    return "0%";
-  }
-  return `${Math.round((numerator / denominator) * 100)}%`;
-};
 
 const formatBytes = (value) => {
   const bytes = Number(value || 0);
@@ -88,23 +69,26 @@ const formatExtension = (value) => {
   return normalized.replace(".", "").toUpperCase();
 };
 
-const formatPageCount = (value) => {
-  const pages = Number(value || 0);
-  if (!Number.isFinite(pages) || pages <= 0) {
-    return "n/a";
+const extractDataPullDate = (meta = {}) => {
+  const inventoryMeta = meta.inventory || {};
+  const runId = inventoryMeta.run_id || meta.inventory_run_id || "";
+  const sourceRoot = inventoryMeta.source_root_name || meta.source_root_name || "";
+  const labelSource = runId || sourceRoot || "";
+  if (!labelSource) {
+    return null;
   }
-  return formatNumber(pages);
+  const match = labelSource.match(/(\d{4}[._-]\d{2}[._-]\d{2}|\d{2}[._-]\d{2}[._-]\d{2})/);
+  return match ? match[0] : null;
 };
 
-const countBy = (items, key, fallback = "Unknown") => {
-  const counts = new Map();
-  items.forEach((item) => {
-    const label = item[key] ? String(item[key]) : fallback;
-    counts.set(label, (counts.get(label) || 0) + 1);
-  });
-  return Array.from(counts.entries())
-    .map(([label, count]) => ({ label, count }))
-    .sort((a, b) => b.count - a.count);
+const updateCatalogTitles = (meta = {}) => {
+  const dateLabel = extractDataPullDate(meta);
+  if (catalogTitle) {
+    catalogTitle.textContent = dateLabel ? `Catalog breakdown — ${dateLabel}` : "Catalog breakdown";
+  }
+  if (runSummaryTitle) {
+    runSummaryTitle.textContent = dateLabel ? `Latest inventory run — ${dateLabel}` : "Latest inventory run";
+  }
 };
 
 const buildMetricList = (metrics) => {
@@ -122,91 +106,6 @@ const buildMetricList = (metrics) => {
   return list;
 };
 
-const renderRunSummary = (meta = {}) => {
-  if (!runSummaryStatus || !runSummaryMetrics) {
-    return;
-  }
-
-  const inventoryMeta = meta.inventory || {};
-  const probeMeta = meta.probe || {};
-  const inventoryTotals = inventoryMeta.totals || {};
-  const probeTotals = probeMeta.totals || {};
-  const probeText = probeMeta.text || {};
-
-  const metrics = [];
-  const inventoryRunId = inventoryMeta.run_id || meta.inventory_run_id;
-  const probeRunId = probeMeta.run_id || meta.probe_run_id;
-
-  if (inventoryRunId) {
-    metrics.push({ label: "Latest inventory run", value: inventoryRunId });
-  }
-  if (Number.isFinite(Number(inventoryTotals.files))) {
-    metrics.push({
-      label: "Inventory files",
-      value: formatNumber(inventoryTotals.files),
-    });
-  }
-  if (Number.isFinite(Number(inventoryTotals.total_bytes))) {
-    metrics.push({
-      label: "Inventory size",
-      value: formatBytes(inventoryTotals.total_bytes),
-    });
-  }
-  if (Number.isFinite(Number(inventoryMeta.folder_count))) {
-    metrics.push({
-      label: "VOL folders",
-      value: formatNumber(inventoryMeta.folder_count),
-    });
-  }
-
-  if (probeRunId) {
-    metrics.push({ label: "Latest probe run", value: probeRunId });
-  }
-  if (Number.isFinite(Number(probeTotals.pdfs))) {
-    metrics.push({
-      label: "PDFs probed",
-      value: formatNumber(probeTotals.pdfs),
-    });
-  }
-  if (Number.isFinite(Number(probeTotals.pages))) {
-    metrics.push({
-      label: "Pages analyzed",
-      value: formatNumber(probeTotals.pages),
-    });
-  }
-  if (Number.isFinite(Number(probeText.pages_with_text))) {
-    metrics.push({
-      label: "Pages with text",
-      value: formatNumber(probeText.pages_with_text),
-    });
-  }
-  if (Number.isFinite(Number(probeText.pages_without_text))) {
-    metrics.push({
-      label: "Pages without text",
-      value: formatNumber(probeText.pages_without_text),
-    });
-  }
-
-  if (meta.last_updated) {
-    metrics.push({ label: "Catalog updated", value: meta.last_updated });
-  }
-  const sourceRoot = inventoryMeta.source_root_name || meta.source_root_name;
-  if (sourceRoot) {
-    metrics.push({ label: "Source root", value: sourceRoot });
-  }
-
-  runSummaryMetrics.innerHTML = "";
-
-  if (metrics.length === 0) {
-    runSummaryStatus.textContent = "Latest inventory and probe details are not yet published.";
-    return;
-  }
-
-  runSummaryStatus.textContent =
-    "Showing totals from the latest full inventory and probe runs.";
-  runSummaryMetrics.appendChild(buildMetricList(metrics));
-};
-
 const buildCountList = (items) => {
   const list = document.createElement("ul");
   list.className = "breakdown-list";
@@ -218,119 +117,112 @@ const buildCountList = (items) => {
   return list;
 };
 
-const buildChartList = (items, total) => {
-  const chart = document.createElement("div");
-  chart.className = "chart-list";
-  items.forEach(({ label, count }) => {
-    const row = document.createElement("div");
-    row.className = "chart-row";
-
-    const labelEl = document.createElement("span");
-    labelEl.className = "chart-label";
-    labelEl.textContent = label;
-
-    const barTrack = document.createElement("span");
-    barTrack.className = "chart-bar-track";
-
-    const barFill = document.createElement("span");
-    barFill.className = "chart-bar-fill";
-    const ratio = total ? count / total : 0;
-    barFill.style.width = `${Math.max(ratio * 100, 1)}%`;
-
-    barTrack.appendChild(barFill);
-
-    const valueEl = document.createElement("span");
-    valueEl.className = "chart-value";
-    valueEl.textContent = `${formatNumber(count)} (${Math.round(ratio * 100)}%)`;
-
-    row.append(labelEl, barTrack, valueEl);
-    chart.appendChild(row);
+const countVolFolders = (items) => {
+  const datasetSet = new Set();
+  const volSet = new Set();
+  items.forEach((item) => {
+    const dataset = item.dataset ? String(item.dataset) : "";
+    if (!dataset) {
+      return;
+    }
+    datasetSet.add(dataset);
+    if (dataset.toUpperCase().startsWith("VOL")) {
+      volSet.add(dataset);
+    }
   });
-  return chart;
+  return {
+    totalDatasets: datasetSet.size,
+    volFolders: volSet.size,
+  };
 };
 
-const buildChartSection = ({ title, items, total }) => {
+const renderInventorySummary = (meta = {}, items = []) => {
+  if (!runSummaryStatus || !runSummaryMetrics) {
+    return;
+  }
+
+  const inventoryMeta = meta.inventory || {};
+  const totals = inventoryMeta.totals || {};
+  const folderCounts = countVolFolders(items);
+  const inventoryRunId = inventoryMeta.run_id || meta.inventory_run_id;
+  const inventorySource = inventoryMeta.source_root_name || meta.source_root_name;
+  const resolvedFolderCount =
+    folderCounts.volFolders || Number(inventoryMeta.folder_count) || folderCounts.totalDatasets;
+
+  const metrics = [];
+
+  if (inventoryRunId) {
+    metrics.push({ label: "Inventory run ID", value: inventoryRunId });
+  }
+  if (inventorySource) {
+    metrics.push({ label: "DataPull folder", value: inventorySource });
+  }
+  if (Number.isFinite(Number(totals.files))) {
+    metrics.push({ label: "Inventory files", value: formatNumber(totals.files) });
+  }
+  if (Number.isFinite(Number(totals.total_bytes))) {
+    metrics.push({ label: "Inventory size", value: formatBytes(totals.total_bytes) });
+  }
+  if (Number.isFinite(Number(resolvedFolderCount))) {
+    metrics.push({ label: "VOL folders", value: formatNumber(resolvedFolderCount) });
+  }
+
+  runSummaryMetrics.innerHTML = "";
+
+  if (metrics.length === 0) {
+    runSummaryStatus.textContent = "Latest inventory details are not yet published.";
+    return;
+  }
+
+  runSummaryStatus.textContent = "Showing totals from the latest full inventory run.";
+  runSummaryMetrics.appendChild(buildMetricList(metrics));
+};
+
+const buildDatasetTypeBreakdown = (items) => {
+  const datasetMap = new Map();
+
+  items.forEach((item) => {
+    const dataset = item.dataset ? String(item.dataset) : "Unknown VOL";
+    const extension = formatExtension(item.extension);
+    if (!datasetMap.has(dataset)) {
+      datasetMap.set(dataset, new Map());
+    }
+    const extMap = datasetMap.get(dataset);
+    extMap.set(extension, (extMap.get(extension) || 0) + 1);
+  });
+
+  const datasetEntries = Array.from(datasetMap.entries())
+    .map(([dataset, extMap]) => {
+      const typeCounts = Array.from(extMap.entries())
+        .map(([label, count]) => ({ label, count }))
+        .sort((a, b) => b.count - a.count);
+      const total = typeCounts.reduce((sum, item) => sum + item.count, 0);
+      return { dataset, total, typeCounts };
+    })
+    .sort((a, b) => a.dataset.localeCompare(b.dataset));
+
   const wrapper = document.createElement("div");
-  wrapper.className = "chart-section";
+  wrapper.className = "dataset-breakdown";
 
-  const heading = document.createElement("h4");
-  heading.textContent = title;
-  wrapper.appendChild(heading);
+  datasetEntries.forEach(({ dataset, total, typeCounts }) => {
+    const section = document.createElement("section");
+    section.className = "dataset-breakdown__section";
 
-  wrapper.appendChild(buildChartList(items, total));
+    const heading = document.createElement("h4");
+    heading.textContent = `${dataset} (${formatNumber(total)} files)`;
+
+    section.append(heading, buildCountList(typeCounts));
+    wrapper.appendChild(section);
+  });
+
   return wrapper;
 };
 
-const buildBreakdownCard = ({ title, description, metrics, list, charts }) => {
-  const card = document.createElement("article");
-  card.className = "breakdown-card";
-
-  const heading = document.createElement("h3");
-  heading.textContent = title;
-
-  const body = document.createElement("p");
-  body.textContent = description;
-
-  card.append(heading, body);
-
-  if (metrics?.length) {
-    card.appendChild(buildMetricList(metrics));
+const renderCatalog = (items, meta = {}) => {
+  if (!catalogContent) {
+    return;
   }
 
-  if (list?.length) {
-    card.appendChild(buildCountList(list));
-  }
-
-  if (charts?.length) {
-    charts.forEach((chart) => card.appendChild(chart));
-  }
-
-  return card;
-};
-
-const buildDocumentCard = (item) => {
-  const card = document.createElement("article");
-  card.className = "card";
-
-  const title = document.createElement("h3");
-  title.textContent = item.title || "Untitled document";
-
-  const summary = document.createElement("p");
-  summary.textContent =
-    item.summary ||
-    "This entry is listed in the public catalog so reviewers can trace it back to the DOJ source.";
-
-  const fileType = formatExtension(item.extension);
-  const fileSize = formatBytes(item.size_bytes);
-  const pageCount = formatPageCount(item.page_count);
-
-  const meta = document.createElement("div");
-  meta.className = "meta";
-  meta.innerHTML = `
-    <span><strong>VOL folder:</strong> ${item.dataset || "Unknown VOL"}</span>
-    <span><strong>File type:</strong> ${fileType}</span>
-    <span><strong>File size:</strong> ${fileSize}</span>
-    <span><strong>Pages:</strong> ${pageCount}</span>
-    <span><strong>Document type:</strong> ${item.doc_type_final || "Unknown"}</span>
-    <span><strong>Content type:</strong> ${item.content_type || "Unknown"}</span>
-    <span><strong>Relative path:</strong> ${item.rel_path || "Unavailable"}</span>
-  `;
-
-  const hasValidLink = isValidUrl(item.doj_url);
-  const link = document.createElement(hasValidLink ? "a" : "span");
-  link.className = `card-link${hasValidLink ? "" : " card-link--disabled"}`;
-  link.textContent = hasValidLink ? "Open DOJ source" : "Source link pending";
-  if (hasValidLink) {
-    link.href = item.doj_url;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-  }
-
-  card.append(title, summary, meta, link);
-  return card;
-};
-
-const renderCatalog = (items) => {
   catalogContent.innerHTML = "";
 
   if (items.length === 0) {
@@ -338,156 +230,15 @@ const renderCatalog = (items) => {
     return;
   }
 
-  const totalDocuments = items.length;
-  const totalBytes = items.reduce((sum, item) => {
-    const sizeBytes = Number.parseFloat(item.size_bytes);
-    return sum + (Number.isFinite(sizeBytes) ? sizeBytes : 0);
-  }, 0);
-  const datasetCounts = countBy(items, "dataset");
-  const extensionCounts = countBy(items, "extension", "(none)");
-  const mimeCounts = countBy(items, "detected_mime");
-  const validLinks = items.filter((item) => isValidUrl(item.doj_url)).length;
-  const pendingLinks = totalDocuments - validLinks;
-  const coveragePct = totalDocuments
-    ? `${Math.round((validLinks / totalDocuments) * 100)}%`
-    : "0%";
-  const textBasedDocs = items.filter((item) => item.classification === "Text-based");
-  const verifiedGood = textBasedDocs.filter((item) => item.text_quality_label === "GOOD");
-  const suspiciousText = textBasedDocs.filter((item) =>
-    ["EMPTY", "LOW"].includes(item.text_quality_label)
-  );
-  const textBasedShare = formatPct(textBasedDocs.length, totalDocuments);
-  const verifiedShare = formatPct(verifiedGood.length, textBasedDocs.length);
-  const suspiciousShare = formatPct(suspiciousText.length, textBasedDocs.length);
-  const hasTextSignals = items.some((item) => item.classification || item.text_quality_label);
+  updateCatalogTitles(meta);
 
-  const grid = document.createElement("div");
-  grid.className = "breakdown-grid";
+  const breakdownIntro = document.createElement("p");
+  breakdownIntro.textContent =
+    "Each DataSet (VOL) is listed with the total number of files by type so non-technical reviewers can confirm every folder was captured.";
 
-  grid.append(
-    buildBreakdownCard({
-      title: "Executive summary",
-      description:
-        "Quick totals that explain the overall size of the public catalog without opening any files.",
-      metrics: [
-        { label: "Total documents", value: formatNumber(totalDocuments) },
-        { label: "Total size", value: formatBytes(totalBytes) },
-        { label: "VOL folders represented", value: formatNumber(datasetCounts.length) },
-      ],
-    }),
-    buildBreakdownCard({
-      title: "VOL folder structure",
-      description:
-        "Highlights every VOL folder represented in the catalog so reviewers can confirm nothing is missing.",
-      list: datasetCounts,
-      charts: [
-        buildChartSection({
-          title: "Documents by VOL folder",
-          items: datasetCounts,
-          total: totalDocuments,
-        }),
-      ],
-    }),
-    buildBreakdownCard({
-      title: "Files by type",
-      description:
-        "Shows the mix of file extensions and detected MIME types so reviewers can spot non-PDF formats.",
-      list: [
-        ...extensionCounts.map((item) => ({
-          label: `Extension: ${formatExtension(item.label)}`,
-          count: item.count,
-        })),
-        ...mimeCounts.map((item) => ({
-          label: `MIME type: ${item.label}`,
-          count: item.count,
-        })),
-      ],
-      charts: [
-        buildChartSection({
-          title: "File extensions",
-          items: extensionCounts.slice(0, 12),
-          total: totalDocuments,
-        }),
-        buildChartSection({
-          title: "Detected MIME types",
-          items: mimeCounts.slice(0, 12),
-          total: totalDocuments,
-        }),
-      ],
-    }),
-    ...(hasTextSignals
-      ? [
-          buildBreakdownCard({
-            title: "Text-based PDF readiness",
-            description:
-              "Highlights which PDFs are truly text-ready, using probe and text scan signals when available.",
-            metrics: [
-              {
-                label: "Text-based PDFs",
-                value: `${formatNumber(textBasedDocs.length)} (${textBasedShare})`,
-              },
-              {
-                label: "Verified good text (GOOD)",
-                value: `${formatNumber(verifiedGood.length)} (${verifiedShare})`,
-              },
-              {
-                label: "Suspicious text (EMPTY/LOW)",
-                value: `${formatNumber(suspiciousText.length)} (${suspiciousShare})`,
-              },
-            ],
-            charts: [
-              buildChartSection({
-                title: "PDF text readiness",
-                items: [
-                  { label: "Text-based PDFs", count: textBasedDocs.length },
-                  { label: "Verified GOOD text", count: verifiedGood.length },
-                  { label: "Suspicious text", count: suspiciousText.length },
-                ],
-                total: totalDocuments,
-              }),
-            ],
-          }),
-        ]
-      : []),
-    buildBreakdownCard({
-      title: "Source link readiness",
-      description:
-        "Counts how many entries are ready to open on justice.gov versus still waiting on a source URL.",
-      metrics: [
-        { label: "Valid DOJ links", value: formatNumber(validLinks) },
-        { label: "Links pending", value: formatNumber(pendingLinks) },
-        { label: "Coverage", value: coveragePct },
-      ],
-      charts: [
-        buildChartSection({
-          title: "Source link coverage",
-          items: [
-            { label: "Valid DOJ links", count: validLinks },
-            { label: "Links pending", count: pendingLinks },
-          ],
-          total: totalDocuments,
-        }),
-      ],
-    })
-  );
+  const breakdown = buildDatasetTypeBreakdown(items);
 
-  const documentSection = document.createElement("section");
-  documentSection.className = "document-section";
-
-  const documentHeading = document.createElement("h3");
-  documentHeading.textContent = "Document catalog (all published files)";
-
-  const documentIntro = document.createElement("p");
-  documentIntro.textContent =
-    "Every entry below is part of the public index, with plain-language context so non-technical reviewers can confirm what each file is and whether the DOJ source link is ready.";
-
-  const documentGrid = document.createElement("div");
-  documentGrid.className = "document-grid";
-  items.forEach((item) => documentGrid.appendChild(buildDocumentCard(item)));
-
-  documentSection.append(documentHeading, documentIntro, documentGrid);
-
-  catalogContent.append(grid, documentSection);
+  catalogContent.append(breakdownIntro, breakdown);
 };
 
 const loadCatalog = async () => {
@@ -505,16 +256,8 @@ const loadCatalog = async () => {
     const data = await response.json();
     catalogItems = Array.isArray(data.items) ? data.items : [];
 
-    // Future enhancements hook:
-    // - Doc-type filters
-    // - Content-type filters
-    // - Name/entity search
-    // - Summary charts
-    // - Additional pages (about, methodology)
-
-    updateStatus(catalogItems.length);
-    renderRunSummary(data.meta || {});
-    renderCatalog(catalogItems);
+    renderInventorySummary(data.meta || {}, catalogItems);
+    renderCatalog(catalogItems, data.meta || {});
   } catch (error) {
     showError();
   }
