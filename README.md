@@ -78,6 +78,39 @@ python pipelines/base/doj_disclosures_downloader.py
 - Deterministic IDs: `file_id` favors the SHA-256 file hash when requested; otherwise it uses the path/size/mtime triple.
 - **Large ZIP visibility**: the inventory now reads ZIP file listings without extracting them. Entries appear as `archive.zip::path/inside/file.pdf`, so you can see what is inside oversized archives without opening them manually.
 
+## Naming conventions (plain language)
+Use these names so non-technical reviewers can quickly tell **what was downloaded**, **when it was downloaded**, and **which outputs belong to which DOJ release**.
+
+### DataPull (top-level download folder)
+- **What it means**: the *entire* DOJ download for a single day.
+- **Naming pattern**: `DOJ_DataSets_<MM.DD.YY>`
+- **Example**: `DOJ_DataSets_12.23.25`
+- **Why it matters**: the date is the original DOJ download date. Keeping it in the folder name makes run outputs and dashboards easy to trace back to the exact pull.
+
+### DataSet (VOL folder inside a DataPull)
+- **What it means**: a single DOJ volume folder inside a DataPull.
+- **Naming pattern**: `VOL00007`, `VOL00008`, etc.
+- **Why it matters**: volumes repeat between pulls, so keeping the VOL name intact is essential for change tracking and DOJ URL backtracking.
+
+### Run IDs (inventory, probe, text scan, name index)
+- **What it means**: the folder name for each pipeline output.
+- **Naming pattern**:
+  - Inventory: `<DataPull>_inventory_<YYYY-MM-DD_HHMMSS>`
+  - Probe: `<DataPull>_probe_<YYYY-MM-DD_HHMMSS>`
+  - Text Scan: `<DataPull>_text_scan_<YYYY-MM-DD_HHMMSS>`
+  - Name Index: `<DataPull>_name_index_<YYYY-MM-DD_HHMMSS>`
+- **Why it matters**: putting the DataPull name first lets reviewers match outputs to the original DOJ pull without opening any files.
+
+### Label files (human-reviewed PDF types)
+- **What it means**: the CSV that stores human labels for PDF type.
+- **Naming pattern**: `pdf_type_labels_<YYYY-MM-DD>.csv`
+- **Why it matters**: dates make it clear when labels were last updated, while keeping the label file recognizable.
+
+### Public catalog export
+- **What it means**: the JSON used by the public-facing catalog site.
+- **Naming pattern**: `public_index_<DataPull>_<YYYY-MM-DD>.json`
+- **Why it matters**: it ties the export back to a specific DOJ pull and export date for easy auditing.
+
 ## Probe workflow
 - Command: `python -m doj_doc_explorer.cli probe run --inventory <PATH|RUN_ID|LATEST> --out ./outputs [--text-threshold 25] [--doc-text-pct-text 0.50] [--doc-text-min-chars-per-page 200] [--run-text-scan/--no-run-text-scan]`
 - Outputs (versioned): `outputs/probes/<run_id>/readiness_pages.parquet|csv`, `readiness_docs.parquet|csv`, `probe_summary.json`, `probe_run_log.json`, plus `outputs/probes/LATEST.json` pointing at the latest run and recording the inventory used.
