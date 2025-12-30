@@ -153,7 +153,8 @@ def run_name_index(
             docs_skipped += 1
             continue
 
-        doc_meta = _build_doc_metadata(row_dict, doc.page_count)
+        page_count = doc.page_count
+        doc_meta = _build_doc_metadata(row_dict, page_count)
         doc_mentions, exceeded = _collect_doc_mentions(
             doc=doc,
             max_names_per_doc=config.max_names_per_doc,
@@ -176,7 +177,7 @@ def run_name_index(
                 accumulator.add(normalized, doc_meta, page_num, count)
 
         docs_scanned += 1
-        total_pages += doc.page_count
+        total_pages += page_count
 
     records = accumulator.to_records(min_total_count=config.min_total_count)
     public_records = build_public_records(records)
