@@ -46,7 +46,14 @@ points to the newest run.
 ## Streamlit testing view (mock)
 Use the Streamlit **Name Search (Mock)** page to review the layout and workflow without running
 the full pipeline yet. It ships with sample data so non-technical reviewers can validate
-search, filters, and CSV export before you publish a real name index.
+search, filters, and CSV export before you publish a real name index. The page now includes a
+**name dropdown** (so you can jump straight to a specific person) and a **Search** button that
+locks in the current filters, which helps reviewers understand exactly why the results changed.
+
+## Public site name search (plain language)
+The `docs/name-search.html` page is the public-facing version of the name lookup. It now offers a
+**name dropdown** plus a **Search** button so visitors can pick a person and know when the results
+are refreshed. This avoids confusion when typing because results only update after they submit.
 
 Launch the dashboards and open **Name Search (Mock)** from the sidebar:
 ```bash

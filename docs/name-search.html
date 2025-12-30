@@ -46,13 +46,19 @@
       <section class="catalog name-search" aria-labelledby="name-search">
         <div class="catalog-header">
           <h2 id="name-search">Search the Name Index</h2>
-          <p class="catalog-intro">
-            Results show the dataset, document title, page numbers, and total
-            mentions for each match.
-          </p>
+        <p class="catalog-intro">
+          Results show the dataset, document title, page numbers, and total
+          mentions for each match. Use the dropdown to jump to a known person,
+          then press <strong>Search</strong> so it is clear when results update.
+        </p>
         </div>
 
-        <div class="catalog-controls search-controls">
+        <form id="name-search-form" class="catalog-controls search-controls">
+          <label for="name-select" class="visually-hidden">Name dropdown</label>
+          <select id="name-select" aria-label="Name dropdown">
+            <option value="">All names</option>
+          </select>
+
           <label for="name-query" class="visually-hidden">Person name</label>
           <input
             id="name-query"
@@ -60,10 +66,13 @@
             placeholder="Enter a person name"
             autocomplete="off"
           />
+          <button id="submit-search" class="btn-primary" type="submit">
+            Search
+          </button>
           <button id="clear-search" class="btn-secondary" type="button">
             Clear
           </button>
-        </div>
+        </form>
         <p id="index-status" class="status">Loading name index…</p>
         <div id="search-feedback" class="search-feedback" aria-live="polite"></div>
         <div id="results" class="results" aria-live="polite"></div>

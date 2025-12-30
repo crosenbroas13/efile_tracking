@@ -138,6 +138,13 @@ def _matches_query(value: str, query: str) -> bool:
     return query in value.lower()
 
 
+def _build_name_options(records: List[Dict[str, object]]) -> List[str]:
+    names = set()
+    for record in records:
+        names.add(record.get("display_name") or "(unknown name)")
+    return ["All names"] + sorted(names, key=str.casefold)
+
+
 st.title("Name Search (Mock)")
 st.caption("Preview the name-search experience inside Streamlit using safe sample data.")
 
@@ -185,8 +192,48 @@ summary_cols[2].metric("Total mentions", f"{summary.get('total_mentions', 0):,}"
 st.markdown("### Search")
 st.caption("Type a name, document title, or path fragment to filter the mock index.")
 
-query = st.text_input("Search terms", placeholder="e.g., Jane Doe or meeting_notes.pdf")
-min_mentions = st.slider("Minimum total mentions (per name)", min_value=1, max_value=10, value=1)
+name_options = _build_name_options(records)
+if "name_search_filters" not in st.session_state:
+    st.session_state.name_search_filters = {
+        "selected_name": "All names",
+        "query": "",
+        "min_mentions": 1,
+    }
+
+saved_filters = st.session_state.name_search_filters
+selected_default = saved_filters["selected_name"] if saved_filters["selected_name"] in name_options else "All names"
+
+with st.form("name_search_form"):
+    selected_name = st.selectbox(
+        "Name dropdown",
+        options=name_options,
+        index=name_options.index(selected_default),
+        help="Choose a single name to focus the results, or leave as All names.",
+    )
+    query = st.text_input(
+        "Search terms",
+        placeholder="e.g., Jane Doe or meeting_notes.pdf",
+        value=saved_filters["query"],
+    )
+    min_mentions = st.slider(
+        "Minimum total mentions (per name)",
+        min_value=1,
+        max_value=10,
+        value=int(saved_filters["min_mentions"]),
+    )
+    submitted = st.form_submit_button("Search")
+
+if submitted:
+    st.session_state.name_search_filters = {
+        "selected_name": selected_name,
+        "query": query,
+        "min_mentions": min_mentions,
+    }
+
+active_filters = st.session_state.name_search_filters
+selected_name = active_filters["selected_name"]
+query = active_filters["query"]
+min_mentions = active_filters["min_mentions"]
 
 index_df = _flatten_records(records)
 if index_df.empty:
@@ -194,6 +241,8 @@ if index_df.empty:
     st.stop()
 
 filtered_df = index_df[index_df["Total mentions (name)"] >= min_mentions].copy()
+if selected_name != "All names":
+    filtered_df = filtered_df[filtered_df["Name"] == selected_name]
 if query:
     query_norm = query.lower()
     matches = (

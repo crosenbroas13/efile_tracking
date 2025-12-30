@@ -1,7 +1,10 @@
 const INDEX_URL = "data/public_name_index.json";
 
 const elements = {
+  form: document.getElementById("name-search-form"),
+  select: document.getElementById("name-select"),
   input: document.getElementById("name-query"),
+  submitButton: document.getElementById("submit-search"),
   clearButton: document.getElementById("clear-search"),
   status: document.getElementById("index-status"),
   feedback: document.getElementById("search-feedback"),
@@ -79,7 +82,7 @@ const renderResults = (matches, query) => {
 
   if (!query) {
     setFeedback(
-      "Enter a person name to see matching documents.",
+      "Choose a name or type a search term, then press Search.",
       "placeholder",
     );
     return;
@@ -223,6 +226,28 @@ const renderResults = (matches, query) => {
   });
 };
 
+const buildNameOptions = (items) => {
+  const names = new Set();
+  items.forEach((item) => {
+    if (item.display_name) {
+      names.add(item.display_name);
+    }
+  });
+  return ["", ...Array.from(names).sort((a, b) => a.localeCompare(b))];
+};
+
+const populateNameDropdown = (items) => {
+  if (!elements.select) return;
+  const options = buildNameOptions(items);
+  elements.select.innerHTML = "";
+  options.forEach((name) => {
+    const option = document.createElement("option");
+    option.value = name;
+    option.textContent = name || "All names";
+    elements.select.appendChild(option);
+  });
+};
+
 const findMatches = (query) => {
   const normalized = normalizeInput(query);
   const normalizedNoComma = normalizeNoComma(normalized);
@@ -247,8 +272,16 @@ const findMatches = (query) => {
   );
 };
 
+const getSearchQuery = () => {
+  const selectedName = elements.select?.value?.trim();
+  if (selectedName) {
+    return selectedName;
+  }
+  return elements.input.value;
+};
+
 const handleSearch = () => {
-  const query = elements.input.value;
+  const query = getSearchQuery();
   const matches = findMatches(query);
   renderResults(matches, normalizeInput(query));
 };
@@ -261,6 +294,7 @@ const setReadyState = () => {
     elements.status.textContent = "Name index loaded.";
   }
   state.ready = true;
+  populateNameDropdown(state.items);
   handleSearch();
 };
 
@@ -271,6 +305,12 @@ const setErrorState = () => {
     "error",
   );
   elements.input.disabled = true;
+  if (elements.select) {
+    elements.select.disabled = true;
+  }
+  if (elements.submitButton) {
+    elements.submitButton.disabled = true;
+  }
   elements.clearButton.disabled = true;
 };
 
@@ -291,11 +331,34 @@ const loadIndex = async () => {
 };
 
 if (elements.input) {
-  elements.input.addEventListener("input", handleSearch);
+  elements.input.addEventListener("focus", () => {
+    if (elements.select && elements.select.value) {
+      elements.select.value = "";
+    }
+  });
+}
+
+if (elements.select) {
+  elements.select.addEventListener("change", () => {
+    if (!elements.select.value) {
+      return;
+    }
+    elements.input.value = elements.select.value;
+  });
+}
+
+if (elements.form) {
+  elements.form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    handleSearch();
+  });
 }
 
 if (elements.clearButton) {
   elements.clearButton.addEventListener("click", () => {
+    if (elements.select) {
+      elements.select.value = "";
+    }
     elements.input.value = "";
     elements.input.focus();
     handleSearch();
