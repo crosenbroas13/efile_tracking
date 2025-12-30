@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DOJ Document Explorer — Inventory &amp; Probe Delta</title>
+    <link rel="stylesheet" href="site/style.css" />
+  </head>
+  <body>
+    <nav class="site-nav">
+      <div class="container nav-inner">
+        <a class="nav-logo" href="index.html">DOJ Document Explorer</a>
+        <div class="nav-links">
+          <a href="index.html">Home</a>
+          <a href="name-search.html">Name Search</a>
+          <a href="inventory-delta.html" aria-current="page"
+            >Inventory &amp; Probe Delta</a
+          >
+        </div>
+      </div>
+    </nav>
+
+    <header class="site-header site-header--compact">
+      <div class="container">
+        <p class="site-kicker">Change summary across runs</p>
+        <h1>Inventory &amp; Probe Delta</h1>
+        <p class="tagline">
+          Compare the very first data pull to the most recent inventory and
+          probe. This view highlights what changed at the top folder level so
+          non-technical reviewers can spot growth, missing folders, or shifting
+          volumes without opening files.
+        </p>
+      </div>
+    </header>
+
+    <main class="container">
+      <section class="intro" aria-labelledby="delta-explainer">
+        <h2 id="delta-explainer">What this page tells you</h2>
+        <p>
+          Inventories describe <strong>everything that was pulled</strong>
+          (counts and total size). Probes describe <strong>what could be
+          analyzed</strong> inside that pull (like how many PDFs were scanned
+          and how many were text-ready). This page compares the
+          <strong>first</strong> and <strong>latest</strong> runs so you can see
+          if new folders appeared, volumes grew, or coverage shifted.
+        </p>
+        <p>
+          The numbers below are summaries only — they do not expose any document
+          contents. Each card includes plain-language notes so stakeholders can
+          understand the implications of the changes.
+        </p>
+      </section>
+
+      <section class="catalog" aria-labelledby="delta-overview">
+        <div class="catalog-header">
+          <h2 id="delta-overview">Top-level change overview</h2>
+          <p class="catalog-intro">
+            The charts and tables below compare the first and last runs for the
+            same dataset family. Use the <strong>change</strong> column to see
+            where the pull grew or shrank at the top folder level.
+          </p>
+        </div>
+
+        <div class="catalog-controls catalog-controls--compact">
+          <p id="status" class="status">Loading…</p>
+          <a class="btn-secondary" href="index.html">Back to catalog</a>
+        </div>
+
+        <div id="delta-content" class="catalog-content" aria-live="polite">
+          <div class="loading">Loading…</div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container">
+        <p>
+          Source documents are hosted by the U.S. Department of Justice. This
+          site publishes analysis metadata only.
+        </p>
+      </div>
+    </footer>
+
+    <script src="inventory-delta.js"></script>
+  </body>
+</html>
