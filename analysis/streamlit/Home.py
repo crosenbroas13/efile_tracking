@@ -78,7 +78,7 @@ def _merge_text_scan_labels(docs_df: pd.DataFrame, text_scan_df: pd.DataFrame) -
     return merged.drop(columns=["rel_path_norm"], errors="ignore")
 
 
-st.title("DOJ Dataset QA Toolkit")
+st.title("DOJ VOL Folder QA Toolkit")
 st.caption("Latest inventory and probe snapshot for fast, non-technical review.")
 
 st.markdown(
@@ -118,7 +118,7 @@ summary_cols[1].metric("Total size", f"{total_size_gb:,.2f} GB")
 if inventory_label:
     st.caption(f"Using latest inventory: {inventory_label}")
 
-st.markdown("### Dataset Structure")
+st.markdown("### VOL Folder Structure")
 st.caption("Folder mix by file count, plus the largest folders by total size.")
 structure_cols = st.columns(2)
 

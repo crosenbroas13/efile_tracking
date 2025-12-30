@@ -81,7 +81,7 @@ def _build_pdf_report(summary: Dict, folder_counts: pd.DataFrame, type_counts: p
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Helvetica", "B", 16)
-    pdf.cell(0, 10, "Dataset QA Summary", ln=True)
+    pdf.cell(0, 10, "VOL Folder QA Summary", ln=True)
 
     pdf.set_font("Helvetica", "", 12)
     subtitle = label or "Selected inventory"
@@ -232,7 +232,7 @@ def main() -> None:
     metrics_cols[1].metric("Total size", f"{summary['total_size_gb']:.2f} GB")
     metrics_cols[2].metric("Logged errors", str(summary.get("errors_count", 0)))
 
-    st.markdown("### Dataset Structure")
+    st.markdown("### VOL Folder Structure")
     st.caption("Understand where files live and which formats dominate your drop-off.")
     structure_cols = st.columns(2)
 

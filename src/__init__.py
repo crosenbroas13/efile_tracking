@@ -1,4 +1,4 @@
-"""Dataset inventory package."""
+"""VOL folder inventory package."""
 
 from .app import InventoryResult, InventoryRunner
 

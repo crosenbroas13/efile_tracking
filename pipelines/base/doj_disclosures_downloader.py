@@ -146,7 +146,7 @@ def build_local_path(output_dir: Path, link: DownloadLink) -> Path:
     dataset_folder = ""
     match = re.search(r"data\s*set\s*(\d+)", link.text, flags=re.IGNORECASE)
     if match:
-        dataset_folder = f"Data Set {match.group(1)}"
+        dataset_folder = f"VOL{int(match.group(1)):05d}"
 
     url_path = urlparse(link.url).path
     filename = sanitize_filename(Path(url_path).name)

@@ -36,11 +36,7 @@ def top_level_folder_from_rel_path(rel_path: str) -> str:
     parts = [part for part in prefix.split("/") if part]
     for part in parts:
         if _VOLUME_FOLDER_RE.match(part):
-            dataset_num = part[3:]
-            try:
-                return f"DataSet {int(dataset_num)}"
-            except ValueError:
-                return part
+            return part.upper()
     return parts[0] if parts else ""
 
 

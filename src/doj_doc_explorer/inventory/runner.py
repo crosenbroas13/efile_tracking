@@ -45,9 +45,9 @@ class InventoryRunner:
     ) -> InventoryConfig:
         root_path = self._resolve_root(root)
         if not root_path.exists():
-            raise ValueError(f"Dataset root does not exist: {root_path}")
+            raise ValueError(f"DOJ pull root does not exist: {root_path}")
         if not root_path.is_dir():
-            raise ValueError(f"Dataset root must be a directory: {root_path}")
+            raise ValueError(f"DOJ pull root must be a directory: {root_path}")
         if max_files is not None and max_files <= 0:
             raise ValueError("--max-files must be positive when provided")
         return InventoryConfig(

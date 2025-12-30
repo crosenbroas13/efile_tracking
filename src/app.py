@@ -46,10 +46,10 @@ class InventoryRunner:
     def _validate_root(root: Path) -> None:
         if not root.exists():
             raise ValueError(
-                f"Dataset root does not exist: {root}. Provide a folder that already contains your files to scan."
+                f"DOJ pull root does not exist: {root}. Provide a folder that already contains your files to scan."
             )
         if not root.is_dir():
-            raise ValueError(f"Dataset root must be a directory, but received: {root}")
+            raise ValueError(f"DOJ pull root must be a directory, but received: {root}")
 
     @staticmethod
     def _resolve_root(root: Path | str) -> Path:

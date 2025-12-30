@@ -44,7 +44,7 @@ def build_parser() -> argparse.ArgumentParser:
     inv = subparsers.add_parser("inventory", help="Inventory commands")
     inv_sub = inv.add_subparsers(dest="subcommand")
     inv_run = inv_sub.add_parser("run", help="Run inventory scan")
-    inv_run.add_argument("--root", required=True, help="Dataset root folder")
+    inv_run.add_argument("--root", required=True, help="DOJ pull root folder")
     inv_run.add_argument("--out", default=str(DEFAULT_OUTPUT_ROOT), help="Outputs root")
     inv_run.add_argument("--hash", default="sha256", choices=["none", "md5", "sha1", "sha256"], help="Hash algorithm")
     inv_run.add_argument("--sample-bytes", dest="sample_bytes", type=int, default=0, help="Bytes for sample hash")

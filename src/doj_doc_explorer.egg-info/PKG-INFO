@@ -1,7 +1,7 @@
 Metadata-Version: 2.4
 Name: doj-doc-explorer
 Version: 0.1.0
-Summary: Local-first dataset inventory and probe tooling for DOJ document explorer
+Summary: Local-first VOL folder inventory and probe tooling for DOJ document explorer
 Author: Project Contributor
 License: MIT
 Requires-Python: >=3.10
@@ -99,7 +99,9 @@ python pipelines/base/doj_disclosures_downloader.py
 ## Inventory workflow
 - Command: `python -m doj_doc_explorer.cli inventory run --root <DATA_ROOT> --out ./outputs [--hash sha256|md5|sha1|none] [--ignore ...] [--max-files N]`
 - Outputs (versioned): `outputs/inventory/<run_id>/inventory.csv`, `inventory_summary.json`, `run_log.json`, plus `outputs/inventory/LATEST.json` pointing at the newest run.
-- **Human-friendly run IDs**: the `<run_id>` now starts with the **main folder name you scanned** (sanitized for safe filenames), then the run type and timestamp. This puts the dataset name first so non-technical reviewers can tell which inventory belongs to which drop at a glance.
+- **Human-friendly run IDs**: the `<run_id>` now starts with the **main folder name you scanned** (sanitized for safe filenames), then the run type and timestamp. This puts the pull name first so non-technical reviewers can tell which inventory belongs to which drop at a glance.
+- **Main folder date naming (recommended)**: name the top-level folder with the DOJ pull date (for example, `DOJ_DataSets_12.23.25`). That date becomes part of every run ID, so dashboards and logs clearly show which release is the latest.
+- **Volume-based folder labeling**: if the folder tree includes a segment like `VOL00007`, the inventory treats that as **VOL00007** for every file beneath it. This keeps volume labels consistent even when files are nested deeper than one folder.
 - Backward compatibility: a copy of `inventory.csv` and `inventory_summary.json` is still written to `outputs/` for older dashboards.
 - Deterministic IDs: `file_id` favors the SHA-256 file hash when requested; otherwise it uses the path/size/mtime triple.
 - **Large ZIP visibility**: the inventory now reads ZIP file listings without extracting them. Entries appear as `archive.zip::path/inside/file.pdf`, so you can see what is inside oversized archives without opening them manually.
@@ -107,7 +109,7 @@ python pipelines/base/doj_disclosures_downloader.py
 ## Probe workflow
 - Command: `python -m doj_doc_explorer.cli probe run --inventory <PATH|RUN_ID|LATEST> --out ./outputs [--text-threshold 25] [--doc-text-pct-text 0.50] [--doc-text-min-chars-per-page 200] [--run-text-scan/--no-run-text-scan]`
 - Outputs (versioned): `outputs/probes/<run_id>/readiness_pages.parquet|csv`, `readiness_docs.parquet|csv`, `probe_summary.json`, `probe_run_log.json`, plus `outputs/probes/LATEST.json` pointing at the latest run and recording the inventory used.
-- **Matching probe run IDs**: probe run folders now start with the same **main folder name** captured from the inventory summary, then the run type and timestamp. This keeps inventory and probe outputs aligned for the same dataset.
+- **Matching probe run IDs**: probe run folders now start with the same **main folder name** captured from the inventory summary, then the run type and timestamp. This keeps inventory and probe outputs aligned for the same DOJ pull.
 - Legacy compatibility: probes can still read a flat `outputs/inventory.csv` or a specific run folder.
 - ZIP-aware probing: when the inventory lists `archive.zip::path/inside/file.pdf`, the probe extracts **only the PDF entries** into `outputs/probe_extracts/` (or the configured output root) so they can be analyzed without unpacking the full ZIP.
 - **Text-based classification now uses two safeguards**:  
@@ -255,7 +257,7 @@ python -m doj_doc_explorer.cli doc_type queue \
 - **Local-first reminder:** the dashboards can run straight from this repo without a separate install step because the app loads modules from the `src/` folder. If you prefer a traditional install, `pip install -e .` still works the same.
 - **Home page (executive snapshot):** the landing view now auto-loads the *latest inventory and probe* and presents a **non-technical summary**:
   - **Executive Summary**: total file count and total size (quick scale check).
-  - **Dataset Structure**: a pie chart of file share by top-level folder plus a **Top 5 largest folders** table (so reviewers see where storage is concentrated).
+  - **VOL Folder Structure**: a pie chart of file share by top-level folder plus a **Top 5 largest folders** table (so reviewers see where storage is concentrated).
   - **Files by Type**: a stacked bar chart of file counts by extension with top-level folders as the legend (to highlight format mix by source).
   - **Text Based PDF Documents**: counts of probe text-based PDFs, verified-good vs. suspicious text layers, and the overall share of text-based PDFs in the inventory (so reviewers know what is ready for immediate search vs. needs OCR).
 - What you see on other pages: the QA pages chart text readiness, **redaction-like ratios**, and basic file counts so stakeholders can understand what is ready for review without installing Python tools themselves. The Document Filter page adds a table-driven view for narrowing to long, low-text, or flagged files, and the Probe Run Comparison page highlights differences between two probe runs so teams can explain what changed over time. The Probe Document Viewer supports **relative path search** and a **Chrome-safe image preview** mode so reviewers can jump directly to a file even if embedded PDF previews are blocked.
@@ -269,13 +271,13 @@ python -m doj_doc_explorer.cli doc_type queue \
 - `outputs/labels/`: PDF type labels, reconciliation reports, training snapshots, and predictions.
 - `outputs/models/doc_type/`: trained doc-type classifiers (`model.joblib`, `model_card.json`, `training_snapshot.csv`).
 - `outputs/classification/doc_type/`: prediction runs (`doc_type_predictions.csv`) created by the `doc_type predict` command.
-- `outputs/run_index.json`: a **centralized “latest run” index** keyed by the original dataset folder you scanned. Each entry records the most recent inventory **and** probe run for that dataset so repeated runs update one place without overwriting history.
+- `outputs/run_index.json`: a **centralized “latest run” index** keyed by the original DOJ pull folder you scanned. Each entry records the most recent inventory **and** probe run for that pull so repeated runs update one place without overwriting history.
 - `outputs/inventory.csv` and `outputs/inventory_summary.json` remain for older tooling; new code prefers versioned folders.
 
 ## Troubleshooting
 - **Missing inventory**: `probe run` with `LATEST` will fail if no inventory exists; run an inventory first.
 - **Encrypted or unreadable PDFs**: they are logged in the run log and skipped; probes continue.
-- **Windows/Mac absolute paths**: the CLI resolves `~` and relative paths; prefer absolute paths if you keep datasets outside the repo.
+- **Windows/Mac absolute paths**: the CLI resolves `~` and relative paths; prefer absolute paths if you keep DOJ pull folders outside the repo.
 - **Missing dependencies**: ensure `pip install -e .` completed; `pyarrow` is used when present for parquet outputs.
 - **`fitz` / `static/` errors**: these usually mean the wrong `fitz` package is installed.  
   Uninstall `fitz` and install **PyMuPDF** instead (see the doc-type model dependency note above).  
@@ -323,7 +325,7 @@ Use this checklist to understand what lives where. It is written in plain langua
   - `src/main.py`: PyCharm-friendly runner that triggers inventories using editable constants for paths and settings.
   - `src/app.py`: Implements `InventoryRunner`, handling path validation, inventory execution, summaries, and logging.
   - `src/config.py`: Dataclass for inventory configuration plus helpers to normalize and apply ignore patterns.
-  - `src/inventory.py`: Walks the dataset, gathers file metadata and hashes, and also lists files inside ZIP archives without extracting them.
+  - `src/inventory.py`: Walks the DOJ pull folder, gathers file metadata and hashes, and also lists files inside ZIP archives without extracting them.
   - `src/manifest.py`: Writes inventory CSVs, JSON summaries, and run logs to disk.
   - `src/cli.py`: Legacy wrapper that routes CLI calls to the maintained `doj_doc_explorer.cli` module while keeping old behavior.
   - `src/io_utils.py`: Shared loaders for inventory CSVs, summaries, and run logs with optional Streamlit caching.
