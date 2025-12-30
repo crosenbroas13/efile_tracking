@@ -88,7 +88,16 @@ def run_name_index(
         ],
         on="rel_path",
         how="left",
+        suffixes=("_probe", "_text_scan"),
     )
+    if "text_quality_label_text_scan" in merged.columns:
+        merged["text_quality_label"] = merged["text_quality_label_text_scan"]
+    elif "text_quality_label" not in merged.columns and "text_quality_label_probe" in merged.columns:
+        merged["text_quality_label"] = merged["text_quality_label_probe"]
+    if "content_type_pred_text_scan" in merged.columns:
+        merged["content_type_pred"] = merged["content_type_pred_text_scan"]
+    elif "content_type_pred" not in merged.columns and "content_type_pred_probe" in merged.columns:
+        merged["content_type_pred"] = merged["content_type_pred_probe"]
     if config.only_verified_good:
         if has_text_quality_label:
             merged = merged[merged["text_quality_label"] == "GOOD"].copy()
