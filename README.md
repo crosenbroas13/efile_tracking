@@ -30,7 +30,7 @@ This toolkit inventories DOJ document drops and runs light-touch probes to estim
    ```
 
 ## Minimal inputs
-- **PyCharm scripts**: open `pipelines/base/scripts/run_inventory.py` or `pipelines/base/scripts/run_probe.py`, edit the two constants at the top (data root/output or inventory/output), and click Run. They now call the same maintained CLI code path, so you can swap between editor-run scripts and terminal commands without worrying about drift.
+- **PyCharm scripts**: open `pipelines/base/scripts/run_inventory.py`, `pipelines/base/scripts/run_probe.py`, or `pipelines/base/scripts/run_name_index.py`, edit the constants at the top (data root/output, inventory/probe/text scan outputs), and click Run. These scripts call the same maintained pipeline logic as the CLI, so non-technical reviewers can rerun inventory, probe, or name search from inside an editor without worrying about drift.
 - **CLI**: stick to the commands above; change only the `--root` or `--inventory` values and the output folder if you want a different location. All entry points are backed by the single `doj_doc_explorer.cli` module to reduce duplicated logic.
 
 ## Pipeline layout (plain language)
