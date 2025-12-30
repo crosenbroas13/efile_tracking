@@ -29,6 +29,11 @@ python -m doj_doc_explorer.cli name_index run \
   --out ./outputs
 ```
 
+### Editor-friendly option (plain language)
+If you prefer not to use the command line, open `pipelines/base/scripts/run_name_index.py`,
+edit the constants at the top (inventory, probe, text scan, and output folder), and click Run.
+This produces the same outputs as the CLI and is safe for non-technical reviewers to repeat.
+
 ### Optional filters
 - `--only-verified-good / --no-only-verified-good` (default: on)
 - `--min-total-count 1`
