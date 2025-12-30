@@ -1,0 +1,125 @@
+{
+  "meta": {
+    "last_updated": "2024-05-14",
+    "inventory": {
+      "first_run_id": "dataset-1-inventory-2024-04-01",
+      "last_run_id": "dataset-1-inventory-2024-05-14",
+      "first_run_date": "2024-04-01",
+      "last_run_date": "2024-05-14"
+    },
+    "probe": {
+      "first_run_id": "dataset-1-probe-2024-04-02",
+      "last_run_id": "dataset-1-probe-2024-05-14",
+      "first_run_date": "2024-04-02",
+      "last_run_date": "2024-05-14"
+    }
+  },
+  "inventory": {
+    "totals": {
+      "first": {
+        "file_count": 120,
+        "total_size_bytes": 105000000
+      },
+      "last": {
+        "file_count": 154,
+        "total_size_bytes": 132500000
+      },
+      "delta": {
+        "file_count": 34,
+        "total_size_bytes": 27500000
+      }
+    },
+    "top_levels": [
+      {
+        "name": "DataSet 1",
+        "first_count": 40,
+        "last_count": 52,
+        "delta_count": 12,
+        "first_size_bytes": 35000000,
+        "last_size_bytes": 48000000,
+        "delta_size_bytes": 13000000
+      },
+      {
+        "name": "DataSet 2",
+        "first_count": 30,
+        "last_count": 38,
+        "delta_count": 8,
+        "first_size_bytes": 26000000,
+        "last_size_bytes": 32000000,
+        "delta_size_bytes": 6000000
+      },
+      {
+        "name": "DataSet 3",
+        "first_count": 20,
+        "last_count": 26,
+        "delta_count": 6,
+        "first_size_bytes": 21000000,
+        "last_size_bytes": 24000000,
+        "delta_size_bytes": 3000000
+      },
+      {
+        "name": "DataSet 4",
+        "first_count": 30,
+        "last_count": 38,
+        "delta_count": 8,
+        "first_size_bytes": 23000000,
+        "last_size_bytes": 28500000,
+        "delta_size_bytes": 5500000
+      }
+    ]
+  },
+  "probe": {
+    "totals": {
+      "first": {
+        "pdf_count": 80,
+        "text_ready_count": 22
+      },
+      "last": {
+        "pdf_count": 103,
+        "text_ready_count": 31
+      },
+      "delta": {
+        "pdf_count": 23,
+        "text_ready_count": 9
+      }
+    },
+    "top_levels": [
+      {
+        "name": "DataSet 1",
+        "first_pdf_count": 26,
+        "last_pdf_count": 34,
+        "delta_pdf_count": 8,
+        "first_text_ready_count": 7,
+        "last_text_ready_count": 11,
+        "delta_text_ready_count": 4
+      },
+      {
+        "name": "DataSet 2",
+        "first_pdf_count": 18,
+        "last_pdf_count": 22,
+        "delta_pdf_count": 4,
+        "first_text_ready_count": 5,
+        "last_text_ready_count": 7,
+        "delta_text_ready_count": 2
+      },
+      {
+        "name": "DataSet 3",
+        "first_pdf_count": 14,
+        "last_pdf_count": 18,
+        "delta_pdf_count": 4,
+        "first_text_ready_count": 4,
+        "last_text_ready_count": 6,
+        "delta_text_ready_count": 2
+      },
+      {
+        "name": "DataSet 4",
+        "first_pdf_count": 22,
+        "last_pdf_count": 29,
+        "delta_pdf_count": 7,
+        "first_text_ready_count": 6,
+        "last_text_ready_count": 7,
+        "delta_text_ready_count": 1
+      }
+    ]
+  }
+}
