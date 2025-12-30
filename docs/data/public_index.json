@@ -1,7 +1,27 @@
 {
   "meta": {
     "last_updated": "2024-06-01",
-    "item_count": 8
+    "item_count": 8,
+    "inventory_run_id": "LATEST",
+    "probe_run_id": "LATEST",
+    "source_root_name": "Sample DOJ release",
+    "inventory": {
+      "run_id": "LATEST",
+      "source_root_name": "Sample DOJ release",
+      "totals": {
+        "files": 8,
+        "total_bytes": 2318272
+      },
+      "folder_count": 4
+    },
+    "probe": {
+      "run_id": "LATEST",
+      "totals": {
+        "pdfs": 6,
+        "pages": 82
+      },
+      "text": {}
+    }
   },
   "items": [
     {

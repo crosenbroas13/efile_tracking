@@ -136,6 +136,38 @@ body {
   flex-wrap: wrap;
 }
 
+.run-summary {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 24px;
+  display: grid;
+  gap: 16px;
+}
+
+.run-summary__header h3 {
+  margin: 0 0 6px;
+  font-size: 1.1rem;
+}
+
+.run-summary__intro {
+  margin: 0;
+  color: var(--muted);
+}
+
+.run-summary__content {
+  display: grid;
+  gap: 12px;
+}
+
+.run-summary__metrics .breakdown-metrics {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
 .search-controls {
   align-items: stretch;
 }
